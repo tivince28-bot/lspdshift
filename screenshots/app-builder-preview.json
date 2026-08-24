@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "LS GRID",
+      "hasCanvas": false,
+      "bodyTextLen": 437,
+      "bodyTextHash": "2468df25aafc6b7fcaf3420eb15761a77427fb03838bd9182b24234a97cd112b",
+      "bodyTextPrefix": "LS GRID Los Santos territory desk Atlas Satellite Print Los Sant",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "LS GRID",
+      "hasCanvas": false,
+      "bodyTextLen": 148,
+      "bodyTextHash": "98b5b9fed903f464d2f077499ac58f5e601106d1590d4a0b6202a00a2046dad0",
+      "bodyTextPrefix": "LS GRID Atlas Satellite Print San Andreas atlas + − Click a terr",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}

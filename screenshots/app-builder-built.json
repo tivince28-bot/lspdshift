@@ -1,0 +1,40 @@
+{
+  "url": "http://127.0.0.1:8081/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "LS GRID",
+      "hasCanvas": false,
+      "bodyTextLen": 437,
+      "bodyTextHash": "2468df25aafc6b7fcaf3420eb15761a77427fb03838bd9182b24234a97cd112b",
+      "bodyTextPrefix": "LS GRID Los Santos territory desk Atlas Satellite Print Los Sant",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "LS GRID",
+      "hasCanvas": false,
+      "bodyTextLen": 126,
+      "bodyTextHash": "7b7d710a1aecbd354c4e5bae81e32baa3c71d0d643b591e85cc6d5bbaef15336",
+      "bodyTextPrefix": "LS GRID Atlas Satellite Print Click a territory or tag for its f",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-built.json",
+  "divergesFromBaseline": true,
+  "baselineReasons": [
+    "mobile: body text changed (148 -> 126 chars, hash mismatch)"
+  ]
+}
