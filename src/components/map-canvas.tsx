@@ -56,8 +56,18 @@ function gangColor(gangs: Gang[], gangId: string | null, fallback: string | null
   return gangs.find((g) => g.id === gangId)?.color ?? "#8b8e96";
 }
 
-function pinHtml(color: string) {
-  return `<span class="ls-pin-dot" style="background:${color}"></span>`;
+function pinStyle(color: string, selected: boolean): L.CircleMarkerOptions {
+  return {
+    radius: selected ? 11 : 9,
+    color: selected ? "#f4f1ea" : "#111214",
+    weight: selected ? 3 : 2.5,
+    fillColor: color,
+    fillOpacity: 1,
+    opacity: 1,
+    bubblingMouseEvents: false,
+    pane: "tags",
+    className: selected ? "ls-tag-dot is-selected" : "ls-tag-dot",
+  };
 }
 
 function closeEnough(
@@ -163,8 +173,10 @@ export function MapCanvas(props: Props) {
   const pinLayerRef = useRef<L.FeatureGroup | null>(null);
   const drawLayerRef = useRef<L.LayerGroup | null>(null);
   const vertexLayerRef = useRef<L.LayerGroup | null>(null);
+  const vertexMarkersRef = useRef<L.Marker[]>([]);
+  const vertexTerritoryIdRef = useRef<string | null>(null);
   const turfById = useRef(new Map<string, L.Polygon>());
-  const pinById = useRef(new Map<string, L.Marker>());
+  const pinById = useRef(new Map<string, L.CircleMarker>());
   const propsRef = useRef(props);
   propsRef.current = props;
   const toolRef = useRef(props.tool);
@@ -172,11 +184,28 @@ export function MapCanvas(props: Props) {
   const draftRef = useRef<L.LatLng[]>([]);
   const rectStartRef = useRef<L.LatLng | null>(null);
   const draggingVertexRef = useRef(false);
+  const draggingPinRef = useRef<string | null>(null);
+  const pinMovedRef = useRef(false);
+  const pinMetaRef = useRef(new Map<string, { color: string; selected: boolean }>());
   const workingPolyRef = useRef<LatLng[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     let map: L.Map | null = null;
+
+    function finishPinDrag() {
+      const id = draggingPinRef.current;
+      if (!id) return;
+      const marker = pinById.current.get(id);
+      const moved = pinMovedRef.current;
+      draggingPinRef.current = null;
+      pinMovedRef.current = false;
+      mapRef.current?.dragging.enable();
+      if (marker && moved) {
+        const ll = marker.getLatLng();
+        propsRef.current.onMovePin(id, ll.lat, ll.lng);
+      }
+    }
 
     async function boot() {
       const L = await import("leaflet");
@@ -212,6 +241,16 @@ export function MapCanvas(props: Props) {
         basePane.style.zIndex = "250";
         basePane.style.pointerEvents = "none";
       }
+      map.createPane("vertices");
+      const vertexPane = map.getPane("vertices");
+      if (vertexPane) {
+        vertexPane.style.zIndex = "650";
+      }
+      map.createPane("tags");
+      const tagsPane = map.getPane("tags");
+      if (tagsPane) {
+        tagsPane.style.zIndex = "620";
+      }
 
       const initial = TILE_STYLES[propsRef.current.tileStyle];
       const tiles = makeTileLayer(L, initial.url).addTo(map);
@@ -226,6 +265,11 @@ export function MapCanvas(props: Props) {
 
       map.on("mousemove", (e: L.LeafletMouseEvent) => {
         propsRef.current.onCursor(e.latlng.lat, e.latlng.lng);
+        const dragId = draggingPinRef.current;
+        if (dragId) {
+          pinMovedRef.current = true;
+          pinById.current.get(dragId)?.setLatLng(e.latlng);
+        }
         if (toolRef.current === "polygon" && draftRef.current.length > 0) {
           paintDraft(L, [...draftRef.current, e.latlng], false);
         }
@@ -233,6 +277,9 @@ export function MapCanvas(props: Props) {
           paintRect(L, rectStartRef.current, e.latlng);
         }
       });
+
+      map.on("mouseup", finishPinDrag);
+      window.addEventListener("mouseup", finishPinDrag);
 
       map.on("mousedown", (e: L.LeafletMouseEvent) => {
         if (toolRef.current !== "rect") return;
@@ -395,6 +442,7 @@ export function MapCanvas(props: Props) {
 
     return () => {
       cancelled = true;
+      window.removeEventListener("mouseup", finishPinDrag);
       const m = mapRef.current;
       if (m) {
         const key = (m as L.Map & { __onKey?: (e: KeyboardEvent) => void }).__onKey;
@@ -410,26 +458,56 @@ export function MapCanvas(props: Props) {
 
   function syncVertices() {
     const L = Lref.current;
+    const map = mapRef.current;
     const layer = vertexLayerRef.current;
-    if (!L || !layer) return;
+    if (!L || !map || !layer) return;
     if (draggingVertexRef.current) return;
-    layer.clearLayers();
     const p = propsRef.current;
     const sel = p.selection;
-    if (p.tool !== "pan" || sel?.type !== "territory") return;
+    if (p.tool !== "pan" || sel?.type !== "territory") {
+      if (vertexMarkersRef.current.length) {
+        layer.clearLayers();
+        vertexMarkersRef.current = [];
+        vertexTerritoryIdRef.current = null;
+      }
+      return;
+    }
     const t = p.territories.find((x) => x.id === sel.id);
-    if (!t) return;
+    if (!t) {
+      layer.clearLayers();
+      vertexMarkersRef.current = [];
+      vertexTerritoryIdRef.current = null;
+      return;
+    }
     const poly = turfById.current.get(t.id);
     workingPolyRef.current = t.polygon.map((pt) => ({ ...pt }));
+
+    const sameShape =
+      vertexTerritoryIdRef.current === t.id &&
+      vertexMarkersRef.current.length === t.polygon.length;
+    if (sameShape) {
+      t.polygon.forEach((pt, i) => {
+        vertexMarkersRef.current[i]?.setLatLng([pt.lat, pt.lng]);
+      });
+      return;
+    }
+
+    layer.clearLayers();
+    vertexMarkersRef.current = [];
+    vertexTerritoryIdRef.current = t.id;
     t.polygon.forEach((pt, i) => {
       const marker = L.marker([pt.lat, pt.lng], {
         draggable: true,
-        zIndexOffset: 1200,
+        autoPan: true,
+        autoPanPadding: [48, 48],
+        keyboard: false,
+        pane: "vertices",
+        zIndexOffset: 1200 + i,
         icon: L.divIcon({
           className: "ls-vertex-wrap",
-          html: `<span class="ls-vertex"></span>`,
-          iconSize: [14, 14],
-          iconAnchor: [7, 7],
+          html: `<span class="ls-vertex-hit"><span class="ls-vertex"></span></span>`,
+          iconSize: [36, 36],
+          iconAnchor: [18, 18],
         }),
       });
       marker.on("mousedown", (e: L.LeafletMouseEvent) => {
@@ -438,8 +516,13 @@ export function MapCanvas(props: Props) {
       marker.on("click", (e: L.LeafletMouseEvent) => {
         L.DomEvent.stopPropagation(e);
       });
+      marker.on("dblclick", (e: L.LeafletMouseEvent) => {
+        L.DomEvent.stopPropagation(e);
+      });
       marker.on("dragstart", () => {
         draggingVertexRef.current = true;
+        map.dragging.disable();
+        poly?.unbindTooltip();
       });
       marker.on("drag", () => {
         const ll = marker.getLatLng();
@@ -451,12 +534,16 @@ export function MapCanvas(props: Props) {
       });
       marker.on("dragend", () => {
         draggingVertexRef.current = false;
+        map.dragging.enable();
         const next = workingPolyRef.current;
         if (next && next.length >= 3) {
           propsRef.current.onUpdatePolygon(t.id, next);
         }
       });
       marker.addTo(layer);
+      const el = marker.getElement();
+      if (el) L.DomEvent.disableClickPropagation(el);
+      vertexMarkersRef.current.push(marker);
     });
   }
 
@@ -522,7 +609,18 @@ export function MapCanvas(props: Props) {
       } else {
         poly.setStyle(style);
       }
-      if (selected) poly.bringToFront();
+      if (selected) {
+        poly.bringToFront();
+        poly.unbindTooltip();
+      } else if (!poly.getTooltip()) {
+        poly.bindTooltip(tip, {
+          sticky: true,
+          opacity: 0.95,
+          className: "ls-tip",
+        });
+      } else {
+        poly.setTooltipContent(tip);
+      }
     }
 
     const nextPins = new Set(visiblePins.map((pin) => pin.id));
@@ -530,46 +628,49 @@ export function MapCanvas(props: Props) {
       if (!nextPins.has(id)) {
         pinLayer.removeLayer(layer);
         pinById.current.delete(id);
+        pinMetaRef.current.delete(id);
       }
     }
     for (const pin of visiblePins) {
       const color = gangColor(p.gangs, pin.gangId, pin.color);
       const selected = p.selection?.type === "pin" && p.selection.id === pin.id;
-      const icon = L.divIcon({
-        className: `ls-pin${selected ? " is-selected" : ""}`,
-        html: pinHtml(color),
-        iconSize: [22, 22],
-        iconAnchor: [11, 11],
-      });
+      const style = pinStyle(color, selected);
       let marker = pinById.current.get(pin.id);
       const tip = `${pin.name} · ${gangName(p.gangs, pin.gangId)}`;
+      const draggingThis = draggingPinRef.current === pin.id;
       if (!marker) {
-        marker = L.marker([pin.lat, pin.lng], {
-          icon,
-          draggable: false,
-          riseOnHover: true,
-          zIndexOffset: selected ? 800 : 200,
-        });
-        marker.on("click", (e: L.LeafletMouseEvent) => {
-          L.DomEvent.stopPropagation(e);
+        marker = L.circleMarker([pin.lat, pin.lng], style);
+        marker.on("mousedown", (e: L.LeafletMouseEvent) => {
+          L.DomEvent.stop(e);
           if (toolRef.current !== "pan") return;
+          draggingPinRef.current = pin.id;
+          pinMovedRef.current = false;
+          map.dragging.disable();
+          marker?.closeTooltip();
           propsRef.current.onSelect({ type: "pin", id: pin.id });
         });
-        marker.on("dragend", () => {
-          const ll = marker?.getLatLng();
-          if (ll) propsRef.current.onMovePin(pin.id, ll.lat, ll.lng);
+        marker.on("click", (e: L.LeafletMouseEvent) => {
+          L.DomEvent.stop(e);
+          if (toolRef.current !== "pan") return;
+          propsRef.current.onSelect({ type: "pin", id: pin.id });
         });
         marker.bindTooltip(tip, { opacity: 0.95, className: "ls-tip" });
         marker.addTo(pinLayer);
         pinById.current.set(pin.id, marker);
-      } else {
-        marker.setLatLng([pin.lat, pin.lng]);
-        marker.setIcon(icon);
-        marker.setZIndexOffset(selected ? 800 : 200);
+        pinMetaRef.current.set(pin.id, { color, selected });
+      } else if (!draggingThis) {
+        const here = marker.getLatLng();
+        if (Math.abs(here.lat - pin.lat) > 0.01 || Math.abs(here.lng - pin.lng) > 0.01) {
+          marker.setLatLng([pin.lat, pin.lng]);
+        }
+        const prev = pinMetaRef.current.get(pin.id);
+        if (!prev || prev.color !== color || prev.selected !== selected) {
+          marker.setStyle(style);
+          pinMetaRef.current.set(pin.id, { color, selected });
+        }
         marker.setTooltipContent(tip);
       }
-      if (selected) marker.dragging?.enable();
-      else marker.dragging?.disable();
+      if (selected) marker.bringToFront();
     }
 
     syncVertices();

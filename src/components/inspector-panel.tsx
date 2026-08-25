@@ -173,9 +173,18 @@ export function InspectorPanel({
                 <li key={p.id}>
                   <button
                     type="button"
-                    className="w-full rounded-md px-2 py-1.5 text-left text-sm text-fg hover:bg-surface-2"
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-fg hover:bg-surface-2"
                     onClick={() => onSelectPin(p.id)}
                   >
+                    <span
+                      className="size-2.5 shrink-0 rounded-full"
+                      style={{
+                        background:
+                          p.color ??
+                          gangs.find((g) => g.id === p.gangId)?.color ??
+                          "#8b8e96",
+                      }}
+                    />
                     {p.name}
                     <span className="ml-2 text-xs text-subtle">
                       {PIN_KIND_LABEL[p.kind]}
@@ -339,6 +348,12 @@ export function InspectorPanel({
           </SelectField>
         </Field>
       </div>
+      <Field label="Dot color">
+        <ColorSwatches
+          value={color}
+          onChange={(next) => onSavePin({ ...pin, color: next })}
+        />
+      </Field>
       <Field label="Date found">
         <Input
           type="date"

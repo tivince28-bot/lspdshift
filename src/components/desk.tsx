@@ -48,11 +48,11 @@ const TOOLS: { id: DrawTool; label: string; hint: string; icon: typeof Hand }[] 
   ];
 
 const HINT: Record<DrawTool, string> = {
-  pan: "Click a territory or tag for its file. Drag corners to reshape a selected territory.",
+  pan: "Click a territory or tag for its file. Drag a tag to move it. Drag corners to reshape a selected territory.",
   polygon:
     "Click corners. Double-click or Enter to close. Right-click undoes. Esc cancels.",
   rect: "Click and drag a rectangle over the map.",
-  pin: "Click the map to drop a gang tag.",
+  pin: "Click the map to drop a colored dot.",
 };
 
 type FocusTarget =

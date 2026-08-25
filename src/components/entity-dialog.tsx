@@ -410,6 +410,7 @@ export function PinFormDialog({
   const [name, setName] = useState("");
   const [gangId, setGangId] = useState("");
   const [kind, setKind] = useState<PinKind>("graffiti");
+  const [color, setColor] = useState(GANG_COLOR_PRESETS[0]);
   const [notes, setNotes] = useState("");
   const [dateFound, setDateFound] = useState("");
   const [image, setImage] = useState("");
@@ -419,6 +420,7 @@ export function PinFormDialog({
     setName("");
     setGangId(gangs[0]?.id ?? "");
     setKind("graffiti");
+    setColor(gangs[0]?.color ?? GANG_COLOR_PRESETS[0]);
     setNotes("");
     setDateFound(todayIsoDate());
     setImage("");
@@ -430,7 +432,7 @@ export function PinFormDialog({
         <DialogHeader>
           <DialogTitle>New gang tag</DialogTitle>
           <DialogDescription>
-            A colored dot on the map for graffiti found at this spot.
+            A colored dot on the map. Color can differ from the gang.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -442,7 +444,7 @@ export function PinFormDialog({
               name: name.trim(),
               gangId: gangId || null,
               kind,
-              color: null,
+              color,
               notes: notes.trim(),
               dateFound,
               image,
@@ -473,7 +475,15 @@ export function PinFormDialog({
               </SelectField>
             </Field>
             <Field label="Gang">
-              <SelectField value={gangId} onChange={(e) => setGangId(e.target.value)}>
+              <SelectField
+                value={gangId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setGangId(id);
+                  const g = gangs.find((x) => x.id === id);
+                  if (g) setColor(g.color);
+                }}
+              >
                 <option value="">Unassigned</option>
                 {gangs.map((g) => (
                   <option key={g.id} value={g.id}>
@@ -483,6 +493,9 @@ export function PinFormDialog({
               </SelectField>
             </Field>
           </div>
+          <Field label="Dot color">
+            <ColorSwatches value={color} onChange={setColor} />
+          </Field>
           <Field label="Date found">
             <Input
               type="date"
@@ -543,11 +556,11 @@ export function HelpDialog({
           </li>
           <li>
             <span className="font-medium text-fg">Tag</span> — click the map to drop a
-            colored graffiti marker.
+            colored dot. Set the color in the form or the file panel.
           </li>
           <li>
             <span className="font-medium text-fg">Reshape</span> — select a territory,
-            then drag the corner dots. Selected tags can be dragged too.
+            then drag the corner dots. Drag any tag to move it.
           </li>
           <li>
             The board is public and shared — no sign-in. Anyone can add turf and tags. Export JSON for a backup.

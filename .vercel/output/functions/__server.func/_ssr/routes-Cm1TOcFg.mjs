@@ -11,7 +11,7 @@ import { a as DialogOverlay$1, g as Slot, i as DialogDescription$1, n as DialogC
 import { i as Viewport, n as Scrollbar, r as Thumb, t as Root } from "../_libs/radix-ui__react-scroll-area.mjs";
 import { t as Root$1 } from "../_libs/radix-ui__react-label.mjs";
 import { a as Trigger, i as Root3, n as Portal, r as Provider, t as Content2 } from "../_libs/@radix-ui/react-tooltip+[...].mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/routes-CSjg5Jle.js
+//#region node_modules/.nitro/vite/services/ssr/assets/routes-Cm1TOcFg.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_runtime = require_jsx_runtime();
 function cn(...inputs) {
@@ -649,6 +649,7 @@ function PinFormDialog({ open, onOpenChange, gangs, onSubmit }) {
 	const [name, setName] = (0, import_react.useState)("");
 	const [gangId, setGangId] = (0, import_react.useState)("");
 	const [kind, setKind] = (0, import_react.useState)("graffiti");
+	const [color, setColor] = (0, import_react.useState)(GANG_COLOR_PRESETS[0]);
 	const [notes, setNotes] = (0, import_react.useState)("");
 	const [dateFound, setDateFound] = (0, import_react.useState)("");
 	const [image, setImage] = (0, import_react.useState)("");
@@ -657,6 +658,7 @@ function PinFormDialog({ open, onOpenChange, gangs, onSubmit }) {
 		setName("");
 		setGangId(gangs[0]?.id ?? "");
 		setKind("graffiti");
+		setColor(gangs[0]?.color ?? GANG_COLOR_PRESETS[0]);
 		setNotes("");
 		setDateFound(todayIsoDate());
 		setImage("");
@@ -666,7 +668,7 @@ function PinFormDialog({ open, onOpenChange, gangs, onSubmit }) {
 		onOpenChange,
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(DialogContent, {
 			className: "max-h-[90vh] overflow-y-auto",
-			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(DialogHeader, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(DialogTitle, { children: "New gang tag" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DialogDescription, { children: "A colored dot on the map for graffiti found at this spot." })] }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("form", {
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(DialogHeader, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(DialogTitle, { children: "New gang tag" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DialogDescription, { children: "A colored dot on the map. Color can differ from the gang." })] }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("form", {
 				className: "space-y-3",
 				onSubmit: (e) => {
 					e.preventDefault();
@@ -675,7 +677,7 @@ function PinFormDialog({ open, onOpenChange, gangs, onSubmit }) {
 						name: name.trim(),
 						gangId: gangId || null,
 						kind,
-						color: null,
+						color,
 						notes: notes.trim(),
 						dateFound,
 						image
@@ -709,7 +711,12 @@ function PinFormDialog({ open, onOpenChange, gangs, onSubmit }) {
 							label: "Gang",
 							children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(SelectField, {
 								value: gangId,
-								onChange: (e) => setGangId(e.target.value),
+								onChange: (e) => {
+									const id = e.target.value;
+									setGangId(id);
+									const g = gangs.find((x) => x.id === id);
+									if (g) setColor(g.color);
+								},
 								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("option", {
 									value: "",
 									children: "Unassigned"
@@ -719,6 +726,13 @@ function PinFormDialog({ open, onOpenChange, gangs, onSubmit }) {
 								}, g.id))]
 							})
 						})]
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field$1, {
+						label: "Dot color",
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ColorSwatches, {
+							value: color,
+							onChange: setColor
+						})
 					}),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field$1, {
 						label: "Date found",
@@ -783,7 +797,7 @@ function HelpDialog({ open, onOpenChange }) {
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 						className: "font-medium text-fg",
 						children: "Tag"
-					}), " — click the map to drop a colored graffiti marker."] }),
+					}), " — click the map to drop a colored dot. Set the color in the form or the file panel."] }),
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 						className: "font-medium text-fg",
 						children: "Reshape"
@@ -1157,6 +1171,16 @@ function InspectorPanel({ selection, gangs, territories, pins, onClose, onFocus,
 				})]
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, {
+				label: "Dot color",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ColorSwatches, {
+					value: color,
+					onChange: (next) => onSavePin({
+						...pin,
+						color: next
+					})
+				})
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, {
 				label: "Date found",
 				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Input, {
 					type: "date",
@@ -1426,6 +1450,8 @@ function MapCanvas(props) {
 	const pinLayerRef = (0, import_react.useRef)(null);
 	const drawLayerRef = (0, import_react.useRef)(null);
 	const vertexLayerRef = (0, import_react.useRef)(null);
+	const vertexMarkersRef = (0, import_react.useRef)([]);
+	const vertexTerritoryIdRef = (0, import_react.useRef)(null);
 	const turfById = (0, import_react.useRef)(/* @__PURE__ */ new Map());
 	const pinById = (0, import_react.useRef)(/* @__PURE__ */ new Map());
 	const propsRef = (0, import_react.useRef)(props);
@@ -1471,6 +1497,9 @@ function MapCanvas(props) {
 				basePane.style.zIndex = "250";
 				basePane.style.pointerEvents = "none";
 			}
+			map.createPane("vertices");
+			const vertexPane = map.getPane("vertices");
+			if (vertexPane) vertexPane.style.zIndex = "650";
 			const initial = TILE_STYLES[propsRef.current.tileStyle];
 			const tiles = makeTileLayer(L, initial.url).addTo(map);
 			tileRef.current = tiles;
@@ -1647,26 +1676,51 @@ function MapCanvas(props) {
 	}, []);
 	function syncVertices() {
 		const L = Lref.current;
+		const map = mapRef.current;
 		const layer = vertexLayerRef.current;
-		if (!L || !layer) return;
+		if (!L || !map || !layer) return;
 		if (draggingVertexRef.current) return;
-		layer.clearLayers();
 		const p = propsRef.current;
 		const sel = p.selection;
-		if (p.tool !== "pan" || sel?.type !== "territory") return;
+		if (p.tool !== "pan" || sel?.type !== "territory") {
+			if (vertexMarkersRef.current.length) {
+				layer.clearLayers();
+				vertexMarkersRef.current = [];
+				vertexTerritoryIdRef.current = null;
+			}
+			return;
+		}
 		const t = p.territories.find((x) => x.id === sel.id);
-		if (!t) return;
+		if (!t) {
+			layer.clearLayers();
+			vertexMarkersRef.current = [];
+			vertexTerritoryIdRef.current = null;
+			return;
+		}
 		const poly = turfById.current.get(t.id);
 		workingPolyRef.current = t.polygon.map((pt) => ({ ...pt }));
+		if (vertexTerritoryIdRef.current === t.id && vertexMarkersRef.current.length === t.polygon.length) {
+			t.polygon.forEach((pt, i) => {
+				vertexMarkersRef.current[i]?.setLatLng([pt.lat, pt.lng]);
+			});
+			return;
+		}
+		layer.clearLayers();
+		vertexMarkersRef.current = [];
+		vertexTerritoryIdRef.current = t.id;
 		t.polygon.forEach((pt, i) => {
 			const marker = L.marker([pt.lat, pt.lng], {
 				draggable: true,
-				zIndexOffset: 1200,
+				autoPan: true,
+				autoPanPadding: [48, 48],
+				keyboard: false,
+				pane: "vertices",
+				zIndexOffset: 1200 + i,
 				icon: L.divIcon({
 					className: "ls-vertex-wrap",
-					html: `<span class="ls-vertex"></span>`,
-					iconSize: [14, 14],
-					iconAnchor: [7, 7]
+					html: `<span class="ls-vertex-hit"><span class="ls-vertex"></span></span>`,
+					iconSize: [36, 36],
+					iconAnchor: [18, 18]
 				})
 			});
 			marker.on("mousedown", (e) => {
@@ -1675,8 +1729,13 @@ function MapCanvas(props) {
 			marker.on("click", (e) => {
 				L.DomEvent.stopPropagation(e);
 			});
+			marker.on("dblclick", (e) => {
+				L.DomEvent.stopPropagation(e);
+			});
 			marker.on("dragstart", () => {
 				draggingVertexRef.current = true;
+				map.dragging.disable();
+				poly?.unbindTooltip();
 			});
 			marker.on("drag", () => {
 				const ll = marker.getLatLng();
@@ -1689,10 +1748,14 @@ function MapCanvas(props) {
 			});
 			marker.on("dragend", () => {
 				draggingVertexRef.current = false;
+				map.dragging.enable();
 				const next = workingPolyRef.current;
 				if (next && next.length >= 3) propsRef.current.onUpdatePolygon(t.id, next);
 			});
 			marker.addTo(layer);
+			const el = marker.getElement();
+			if (el) L.DomEvent.disableClickPropagation(el);
+			vertexMarkersRef.current.push(marker);
 		});
 	}
 	function syncAll() {
@@ -1753,7 +1816,15 @@ function MapCanvas(props) {
 				poly.setStyle(style);
 				poly.setTooltipContent(tip);
 			} else poly.setStyle(style);
-			if (selected) poly.bringToFront();
+			if (selected) {
+				poly.bringToFront();
+				poly.unbindTooltip();
+			} else if (!poly.getTooltip()) poly.bindTooltip(tip, {
+				sticky: true,
+				opacity: .95,
+				className: "ls-tip"
+			});
+			else poly.setTooltipContent(tip);
 		}
 		const nextPins = new Set(visiblePins.map((pin) => pin.id));
 		for (const [id, layer] of pinById.current) if (!nextPins.has(id)) {
@@ -1766,8 +1837,8 @@ function MapCanvas(props) {
 			const icon = L.divIcon({
 				className: `ls-pin${selected ? " is-selected" : ""}`,
 				html: pinHtml(color),
-				iconSize: [22, 22],
-				iconAnchor: [11, 11]
+				iconSize: [28, 28],
+				iconAnchor: [14, 14]
 			});
 			let marker = pinById.current.get(pin.id);
 			const tip = `${pin.name} · ${gangName(p.gangs, pin.gangId)}`;
@@ -2177,7 +2248,7 @@ var HINT = {
 	pan: "Click a territory or tag for its file. Drag corners to reshape a selected territory.",
 	polygon: "Click corners. Double-click or Enter to close. Right-click undoes. Esc cancels.",
 	rect: "Click and drag a rectangle over the map.",
-	pin: "Click the map to drop a gang tag."
+	pin: "Click the map to drop a colored dot."
 };
 function Desk() {
 	const board = useBoard();
