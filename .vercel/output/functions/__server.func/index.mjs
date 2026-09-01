@@ -1,11 +1,891 @@
 globalThis.__nitro_main__ = import.meta.url;
 import { i as toEventHandler, n as HTTPError, o as NodeResponse, r as defineLazyEventHandler, t as H3Core } from "./_libs/h3+rou3+srvx.mjs";
+import { t as createServerFn } from "./_libs/@tanstack/start-client-core+[...].mjs";
+import { a as object, i as number, n as array, o as string, t as _enum } from "./_libs/zod.mjs";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 //#region node_modules/nitro/dist/runtime/internal/route-rules.mjs
 var headers = ((m) => function headersRouteRule(event) {
 	for (const [key, value] of Object.entries(m.options || {})) event.res.headers.set(key, value);
 });
+//#endregion
+//#region migrations/0002_schema.sql?raw
+var _0002_schema_default = "-- LS GRID — public unowned board (auth off)\ncreate table if not exists gangs (\n  id           text primary key,\n  name         text not null,\n  tag          text not null default '',\n  color        text not null,\n  status       text not null default 'active',\n  leader       text not null default '',\n  description  text not null default '',\n  members      text not null default '',\n  notes        text not null default '',\n  logo         text not null default '',\n  created_at   timestamptz not null default now(),\n  updated_at   timestamptz not null default now()\n);\n\ncreate table if not exists territories (\n  id           text primary key,\n  gang_id      text,\n  name         text not null,\n  kind         text not null default 'turf',\n  color        text,\n  polygon      text not null,\n  notes        text not null default '',\n  created_at   timestamptz not null default now(),\n  updated_at   timestamptz not null default now()\n);\n\ncreate table if not exists pins (\n  id           text primary key,\n  gang_id      text,\n  name         text not null,\n  kind         text not null default 'graffiti',\n  color        text,\n  lat          double precision not null,\n  lng          double precision not null,\n  notes        text not null default '',\n  date_found   text not null default '',\n  image        text not null default '',\n  created_at   timestamptz not null default now(),\n  updated_at   timestamptz not null default now()\n);\n\ncreate index if not exists territories_gang_id_idx on territories (gang_id);\ncreate index if not exists pins_gang_id_idx on pins (gang_id);\n";
+//#endregion
+//#region scripts/migration-plan.mjs
+/**
+* Migration bookkeeping shared by the two appliers — `scripts/migrate.mjs`
+* (deploy, `readdir`) and `src/lib/db.ts` (PGLite preview, `import.meta.glob`).
+*
+* Applied files are keyed by BASENAME, so the same file applies once no matter
+* which directory it is globbed from. That is what makes the auth schema safe to
+* copy from `migrations/auth/` into `migrations/` when an app turns sign-in on:
+* a database that already has `0001_auth.sql` will not re-run it.
+*
+* Neither applier descends into subdirectories, so `migrations/auth/*.sql` is
+* out of scope for both until it is copied up.
+*/
+/**
+* The `_migrations` key for a migration path (or bare filename).
+* @param {string} path
+* @returns {string}
+*/
+function migrationName(path) {
+	return path.split("/").pop() ?? path;
+}
+/**
+* @param {string} path
+* @returns {boolean}
+*/
+function isMigrationFile(path) {
+	return path.endsWith(".sql");
+}
+/**
+* Migrations in `paths` that are not yet in `applied`, in apply order.
+* Non-`.sql` entries (a `readdir` also yields `migrations/auth/`) are dropped.
+* @param {Iterable<string>} paths
+* @param {Iterable<string>} applied
+* @returns {Array<{ name: string, path: string }>}
+*/
+function pendingMigrations(paths, applied) {
+	const done = new Set(applied);
+	return [...paths].filter(isMigrationFile).map((path) => ({
+		name: migrationName(path),
+		path
+	})).sort((a, b) => a.name.localeCompare(b.name)).filter(({ name }) => !done.has(name));
+}
+//#endregion
+//#region src/lib/db.ts
+function envValue(key) {
+	if (typeof process === "undefined") return void 0;
+	const bag = process.env;
+	if (!bag) return void 0;
+	const value = bag[key];
+	if (typeof value !== "string") return void 0;
+	const trimmed = value.trim();
+	return trimmed ? trimmed : void 0;
+}
+function readDatabaseUrl() {
+	return envValue("DATABASE_URL");
+}
+/**
+* Active backend: real **Neon** when `DATABASE_URL` is set (deployed).
+* Local preview without a URL uses embedded **PGLite**. Deployed runtimes
+* never fall back to PGLite — that path is in-memory and looks like a reset.
+*/
+function getDbSource() {
+	if (readDatabaseUrl()) return "neon";
+	return "pglite";
+}
+/**
+* Init state lives on globalThis as promises: dev HMR creates new instances of
+* this module, and two instances racing module-level state would open a second
+* pool or run two concurrent PGLite migration passes (whose duplicate
+* `_migrations` insert rejects — and would get memoized, poisoning every later
+* `getSql()`). A failed init clears its slot so the next call retries.
+*/
+var globalRef = globalThis;
+var OID_INT8 = 20;
+var OID_DATE = 1082;
+var OID_INTERVAL = 1186;
+var identity = (v) => v;
+/** Wrap a query runner in the tagged-template + `.query()` `Sql` surface. */
+function toSql(run) {
+	const sql = (async (strings, ...values) => {
+		let text = strings[0];
+		for (let i = 0; i < values.length; i += 1) text += `$${i + 1}${strings[i + 1]}`;
+		return run(text, values);
+	});
+	sql.query = (text, params = []) => run(text, params);
+	return sql;
+}
+function createNeonSql() {
+	globalRef.__pgSqlPromise__ ??= (async () => {
+		const url = readDatabaseUrl();
+		if (!url) throw new Error("DATABASE_URL is missing");
+		const { Pool, types } = await import("./_libs/pg.mjs").then((n) => n.t);
+		types.setTypeParser(OID_INT8, Number);
+		types.setTypeParser(OID_DATE, identity);
+		types.setTypeParser(OID_INTERVAL, identity);
+		const pool = new Pool({ connectionString: url });
+		return toSql(async (text, params) => {
+			return (await pool.query(text, params)).rows;
+		});
+	})().catch((err) => {
+		globalRef.__pgSqlPromise__ = void 0;
+		throw err;
+	});
+	return globalRef.__pgSqlPromise__;
+}
+async function createPgliteSql() {
+	globalRef.__pgliteInstance__ ??= (async () => {
+		const { PGlite } = await import("./_libs/electric-sql__pglite.mjs").then((n) => n.t);
+		const pg = new PGlite({ parsers: {
+			[OID_INT8]: Number,
+			[OID_DATE]: identity,
+			[OID_INTERVAL]: identity
+		} });
+		await pg.waitReady;
+		await pg.exec("create table if not exists _migrations (name text primary key, applied_at timestamptz not null default now())");
+		return pg;
+	})().catch((err) => {
+		globalRef.__pgliteInstance__ = void 0;
+		throw err;
+	});
+	const pg = await globalRef.__pgliteInstance__;
+	const migrate = async () => {
+		const migrations = /* #__PURE__ */ Object.assign({ "/migrations/0002_schema.sql": _0002_schema_default });
+		const done = (await pg.query("select name from _migrations")).rows.map((r) => r.name);
+		for (const { name, path } of pendingMigrations(Object.keys(migrations), done)) await pg.transaction(async (tx) => {
+			await tx.exec(migrations[path]);
+			await tx.query("insert into _migrations (name) values ($1)", [name]);
+		});
+	};
+	const pass = (globalRef.__pgliteMigrateChain__ ?? Promise.resolve()).catch(() => void 0).then(migrate);
+	globalRef.__pgliteMigrateChain__ = pass;
+	await pass;
+	return toSql(async (text, params) => {
+		return (await pg.query(text, params)).rows;
+	});
+}
+var sqlPromise = null;
+async function createSql() {
+	if (typeof window !== "undefined") throw new Error("@/lib/db is server-only — call getSql() from a createServerFn handler or a server route loader, never from client code.");
+	return getDbSource() === "neon" ? createNeonSql() : createPgliteSql();
+}
+function getSql() {
+	sqlPromise ??= createSql().catch((err) => {
+		sqlPromise = null;
+		throw err;
+	});
+	return sqlPromise;
+}
+var board_snapshot_default = {
+	gangs: [
+		{
+			"id": "gang-gsf",
+			"name": "Families",
+			"tag": "FAM",
+			"color": "#2ecc71",
+			"status": "active",
+			"leader": "",
+			"description": "South LS classic. Davis and Grove.",
+			"members": "",
+			"notes": "",
+			"logo": "",
+			"createdAt": "2026-09-01T12:00:54.385Z",
+			"updatedAt": "2026-09-01T12:00:54.385Z"
+		},
+		{
+			"id": "gang-vagos",
+			"name": "VAGOS",
+			"tag": "VGS",
+			"color": "#f4d03f",
+			"status": "active",
+			"leader": "",
+			"description": "East side — Rancho to El Burro.",
+			"members": "",
+			"notes": "",
+			"logo": "",
+			"createdAt": "2026-09-01T12:00:54.387Z",
+			"updatedAt": "2026-09-01T12:00:54.387Z"
+		},
+		{
+			"id": "gang-88",
+			"name": "88",
+			"tag": "88",
+			"color": "#e67e22",
+			"status": "active",
+			"leader": "",
+			"description": "",
+			"members": "",
+			"notes": "",
+			"logo": "",
+			"createdAt": "2026-09-01T12:17:24.532Z",
+			"updatedAt": "2026-09-01T12:17:24.532Z"
+		},
+		{
+			"id": "gang-r60",
+			"name": "Rolling 60S",
+			"tag": "R60",
+			"color": "#1d4ed8",
+			"status": "active",
+			"leader": "",
+			"description": "",
+			"members": "",
+			"notes": "",
+			"logo": "",
+			"createdAt": "2026-09-01T12:17:24.533Z",
+			"updatedAt": "2026-09-01T12:17:24.533Z"
+		},
+		{
+			"id": "gang-lost-mc",
+			"name": "Lost MC",
+			"tag": "LMC",
+			"color": "#111111",
+			"status": "active",
+			"leader": "",
+			"description": "",
+			"members": "",
+			"notes": "",
+			"logo": "",
+			"createdAt": "2026-09-01T12:17:24.534Z",
+			"updatedAt": "2026-09-01T12:17:24.534Z"
+		},
+		{
+			"id": "gang-cdi",
+			"name": "Cartel de la isla",
+			"tag": "CDI",
+			"color": "#f5a3c7",
+			"status": "active",
+			"leader": "",
+			"description": "",
+			"members": "",
+			"notes": "",
+			"logo": "",
+			"createdAt": "2026-09-01T12:17:24.539Z",
+			"updatedAt": "2026-09-01T12:17:24.539Z"
+		},
+		{
+			"id": "gang-duvals",
+			"name": "Duvals",
+			"tag": "DVL",
+			"color": "#166534",
+			"status": "active",
+			"leader": "",
+			"description": "",
+			"members": "",
+			"notes": "",
+			"logo": "",
+			"createdAt": "2026-09-01T12:17:24.540Z",
+			"updatedAt": "2026-09-01T12:17:24.540Z"
+		},
+		{
+			"id": "gang-stb",
+			"name": "Satan's bastards",
+			"tag": "STB",
+			"color": "#dc2626",
+			"status": "active",
+			"leader": "",
+			"description": "",
+			"members": "",
+			"notes": "",
+			"logo": "",
+			"createdAt": "2026-09-01T12:17:24.541Z",
+			"updatedAt": "2026-09-01T12:17:24.541Z"
+		},
+		{
+			"id": "gang-navarro",
+			"name": "NAVARRO",
+			"tag": "NAV",
+			"color": "#9a8b1a",
+			"status": "active",
+			"leader": "",
+			"description": "",
+			"members": "",
+			"notes": "",
+			"logo": "",
+			"createdAt": "2026-09-01T12:17:24.541Z",
+			"updatedAt": "2026-09-01T12:17:24.541Z"
+		},
+		{
+			"id": "gang-otg",
+			"name": "OTG",
+			"tag": "OTG",
+			"color": "#22d3ee",
+			"status": "active",
+			"leader": "",
+			"description": "",
+			"members": "",
+			"notes": "",
+			"logo": "",
+			"createdAt": "2026-09-01T12:17:24.542Z",
+			"updatedAt": "2026-09-01T12:17:24.542Z"
+		},
+		{
+			"id": "gang-crimson",
+			"name": "Crimson District",
+			"tag": "CRD",
+			"color": "#c084fc",
+			"status": "active",
+			"leader": "",
+			"description": "",
+			"members": "",
+			"notes": "",
+			"logo": "",
+			"createdAt": "2026-09-01T12:17:24.542Z",
+			"updatedAt": "2026-09-01T12:17:24.542Z"
+		},
+		{
+			"id": "gang-ballas",
+			"name": "Ballas",
+			"tag": "BLS",
+			"color": "#9b59b6",
+			"status": "active",
+			"leader": "",
+			"description": "Davis / Chamberlain.",
+			"members": "",
+			"notes": "",
+			"logo": "",
+			"createdAt": "2026-09-01T12:00:54.386Z",
+			"updatedAt": "2026-09-01T12:00:54.386Z"
+		}
+	],
+	territories: [
+		{
+			"id": "turf-ballas-chamberlain",
+			"gangId": "gang-ballas",
+			"name": "Chamberlain Hills",
+			"kind": "turf",
+			"color": null,
+			"polygon": [
+				{
+					"lat": -1500,
+					"lng": -280
+				},
+				{
+					"lat": -1500,
+					"lng": -40
+				},
+				{
+					"lat": -1680,
+					"lng": -40
+				},
+				{
+					"lat": -1680,
+					"lng": -280
+				}
+			],
+			"notes": "Chamberlain and the Forum Drive cut.",
+			"createdAt": "2026-09-01T12:00:54.388Z",
+			"updatedAt": "2026-09-01T12:00:54.388Z"
+		},
+		{
+			"id": "turf-gsf-davis",
+			"gangId": "gang-gsf",
+			"name": "Davis / Grove",
+			"kind": "turf",
+			"color": null,
+			"polygon": [
+				{
+					"lat": -1680,
+					"lng": 40
+				},
+				{
+					"lat": -1680,
+					"lng": 230
+				},
+				{
+					"lat": -1860,
+					"lng": 230
+				},
+				{
+					"lat": -1860,
+					"lng": 40
+				}
+			],
+			"notes": "Grove Street and the Davis blocks.",
+			"createdAt": "2026-09-01T12:00:54.387Z",
+			"updatedAt": "2026-09-01T12:00:54.387Z"
+		},
+		{
+			"id": "turf-vagos-rancho",
+			"gangId": "gang-vagos",
+			"name": "Rancho / El Burro",
+			"kind": "claimed",
+			"color": null,
+			"polygon": [
+				{
+					"lat": -1740,
+					"lng": 280
+				},
+				{
+					"lat": -1740,
+					"lng": 560
+				},
+				{
+					"lat": -1980,
+					"lng": 560
+				},
+				{
+					"lat": -1980,
+					"lng": 280
+				}
+			],
+			"notes": "East LS yellow.",
+			"createdAt": "2026-09-01T12:00:54.389Z",
+			"updatedAt": "2026-09-01T12:00:54.389Z"
+		}
+	],
+	pins: [
+		{
+			"id": "pin-vagos-elburro",
+			"gangId": "gang-vagos",
+			"name": "El Burro stencil",
+			"kind": "stencil",
+			"color": null,
+			"lat": -1923,
+			"lng": 1491,
+			"notes": "",
+			"dateFound": "2026-01-01",
+			"image": "",
+			"createdAt": "2026-09-01T12:00:54.391Z",
+			"updatedAt": "2026-09-01T12:00:54.391Z"
+		},
+		{
+			"id": "pin-ballas-forum",
+			"gangId": "gang-ballas",
+			"name": "Forum Drive mural",
+			"kind": "mural",
+			"color": null,
+			"lat": -1595,
+			"lng": -165,
+			"notes": "",
+			"dateFound": "2026-01-01",
+			"image": "",
+			"createdAt": "2026-09-01T12:00:54.391Z",
+			"updatedAt": "2026-09-01T12:00:54.391Z"
+		},
+		{
+			"id": "pin-gsf-grove",
+			"gangId": "gang-gsf",
+			"name": "Grove Street throw-up",
+			"kind": "throw-up",
+			"color": null,
+			"lat": -1750,
+			"lng": 112,
+			"notes": "Green GSF on the wall by the house.",
+			"dateFound": "2026-01-01",
+			"image": "",
+			"createdAt": "2026-09-01T12:00:54.390Z",
+			"updatedAt": "2026-09-01T12:00:54.390Z"
+		}
+	]
+};
+//#endregion
+//#region src/lib/map/seed.ts
+var now = "2026-01-01T00:00:00.000Z";
+function gang(id, name, tag, color, description = "") {
+	return {
+		id,
+		name,
+		tag,
+		color,
+		status: "active",
+		leader: "",
+		description,
+		members: "",
+		notes: "",
+		logo: "",
+		createdAt: now,
+		updatedAt: now
+	};
+}
+/** Roster from the set legend — order is the list order. */
+var SEED_GANGS = [
+	gang("gang-gsf", "Families", "FAM", "#2ecc71", "South LS. Davis and Grove."),
+	gang("gang-vagos", "VAGOS", "VGS", "#f4d03f", "East side — Rancho to El Burro."),
+	gang("gang-88", "88", "88", "#e67e22"),
+	gang("gang-r60", "Rolling 60S", "R60", "#1d4ed8"),
+	gang("gang-lost-mc", "Lost MC", "LMC", "#111111"),
+	gang("gang-cdi", "Cartel de la isla", "CDI", "#f5a3c7"),
+	gang("gang-duvals", "Duvals", "DVL", "#166534"),
+	gang("gang-stb", "Satan's bastards", "STB", "#dc2626"),
+	gang("gang-navarro", "NAVARRO", "NAV", "#9a8b1a"),
+	gang("gang-otg", "OTG", "OTG", "#22d3ee"),
+	gang("gang-crimson", "Crimson District", "CRD", "#c084fc"),
+	gang("gang-ballas", "Ballas", "BLS", "#9b59b6", "Davis / Chamberlain.")
+];
+function sortGangs(gangs) {
+	const idx = new Map(SEED_GANGS.map((g, i) => [g.id, i]));
+	return [...gangs].sort((a, b) => {
+		const ai = idx.get(a.id) ?? 1e3;
+		const bi = idx.get(b.id) ?? 1e3;
+		if (ai !== bi) return ai - bi;
+		return a.name.localeCompare(b.name);
+	});
+}
+//#endregion
+//#region src/lib/data.ts
+var gangStatus = _enum([
+	"active",
+	"dormant",
+	"unknown"
+]);
+var territoryKind = _enum([
+	"turf",
+	"contested",
+	"claimed"
+]);
+var pinKind = _enum([
+	"graffiti",
+	"throw-up",
+	"mural",
+	"stencil",
+	"slap",
+	"other"
+]);
+var latLng = object({
+	lat: number(),
+	lng: number()
+});
+var gangInput = object({
+	id: string().min(1),
+	name: string().min(1).max(80),
+	tag: string().max(12).default(""),
+	color: string().min(4).max(16),
+	status: gangStatus.default("active"),
+	leader: string().max(80).default(""),
+	description: string().max(2e3).default(""),
+	members: string().max(4e3).default(""),
+	notes: string().max(4e3).default(""),
+	logo: string().max(4e5).default("")
+});
+var territoryInput = object({
+	id: string().min(1),
+	gangId: string().nullable().default(null),
+	name: string().min(1).max(80),
+	kind: territoryKind.default("turf"),
+	color: string().max(16).nullable().default(null),
+	polygon: array(latLng).min(3).max(200),
+	notes: string().max(4e3).default("")
+});
+var pinInput = object({
+	id: string().min(1),
+	gangId: string().nullable().default(null),
+	name: string().min(1).max(80),
+	kind: pinKind.default("graffiti"),
+	color: string().max(16).nullable().default(null),
+	lat: number(),
+	lng: number(),
+	notes: string().max(4e3).default(""),
+	dateFound: string().max(32).default(""),
+	image: string().max(4e5).default("")
+});
+function asText(value) {
+	if (value instanceof Date) return value.toISOString();
+	return String(value ?? "");
+}
+function mapGang(row) {
+	return {
+		id: row.id,
+		name: row.name,
+		tag: row.tag,
+		color: row.color,
+		status: row.status || "active",
+		leader: row.leader,
+		description: row.description,
+		members: row.members,
+		notes: row.notes,
+		logo: row.logo ?? "",
+		createdAt: asText(row.created_at),
+		updatedAt: asText(row.updated_at)
+	};
+}
+function mapTerritory(row) {
+	let polygon = [];
+	try {
+		const parsed = JSON.parse(row.polygon);
+		if (Array.isArray(parsed)) polygon = parsed;
+	} catch {
+		polygon = [];
+	}
+	return {
+		id: row.id,
+		gangId: row.gang_id,
+		name: row.name,
+		kind: row.kind || "turf",
+		color: row.color,
+		polygon,
+		notes: row.notes,
+		createdAt: asText(row.created_at),
+		updatedAt: asText(row.updated_at)
+	};
+}
+function mapPin(row) {
+	return {
+		id: row.id,
+		gangId: row.gang_id,
+		name: row.name,
+		kind: row.kind || "graffiti",
+		color: row.color,
+		lat: Number(row.lat),
+		lng: Number(row.lng),
+		notes: row.notes,
+		dateFound: row.date_found ?? "",
+		image: row.image ?? "",
+		createdAt: asText(row.created_at),
+		updatedAt: asText(row.updated_at)
+	};
+}
+async function insertSeed(sql) {
+	for (const g of SEED_GANGS) await sql`
+      insert into gangs (id, name, tag, color, status, leader, description, members, notes, logo)
+      values (${g.id}, ${g.name}, ${g.tag}, ${g.color}, ${g.status}, ${g.leader}, ${g.description}, ${g.members}, ${g.notes}, ${g.logo})
+      on conflict (id) do nothing
+    `;
+}
+async function ensureRoster(sql) {
+	await insertSeed(sql);
+	await sql`
+    update gangs
+    set name = ${"Families"}, tag = ${"FAM"}, color = ${"#2ecc71"}
+    where id = ${"gang-gsf"} and name = ${"Grove Street Families"}
+  `;
+	await sql`
+    update gangs
+    set name = ${"VAGOS"}, tag = ${"VGS"}, color = ${"#f4d03f"}
+    where id = ${"gang-vagos"} and name = ${"Los Santos Vagos"}
+  `;
+}
+async function hydrateFromSnapshot(sql) {
+	const snap = board_snapshot_default;
+	const turfN = await sql`select count(*)::int as n from territories`;
+	const pinN = await sql`select count(*)::int as n from pins`;
+	if ((turfN[0]?.n ?? 0) > 0 || (pinN[0]?.n ?? 0) > 0) return;
+	const territories = Array.isArray(snap.territories) ? snap.territories : [];
+	const pins = Array.isArray(snap.pins) ? snap.pins : [];
+	const gangs = Array.isArray(snap.gangs) ? snap.gangs : [];
+	if (territories.length === 0 && pins.length === 0) return;
+	for (const g of gangs) {
+		if (!g?.id || !g?.name || !g?.color) continue;
+		await sql`
+      insert into gangs (id, name, tag, color, status, leader, description, members, notes, logo)
+      values (
+        ${g.id}, ${g.name}, ${g.tag ?? ""}, ${g.color}, ${g.status ?? "active"},
+        ${g.leader ?? ""}, ${g.description ?? ""}, ${g.members ?? ""}, ${g.notes ?? ""}, ${g.logo ?? ""}
+      )
+      on conflict (id) do nothing
+    `;
+	}
+	for (const t of territories) {
+		if (!t?.id || !t?.name || !Array.isArray(t.polygon)) continue;
+		await sql`
+      insert into territories (id, gang_id, name, kind, color, polygon, notes)
+      values (
+        ${t.id}, ${t.gangId ?? null}, ${t.name}, ${t.kind ?? "turf"}, ${t.color ?? null},
+        ${JSON.stringify(t.polygon)}, ${t.notes ?? ""}
+      )
+      on conflict (id) do nothing
+    `;
+	}
+	for (const p of pins) {
+		if (!p?.id || !p?.name || typeof p.lat !== "number" || typeof p.lng !== "number") continue;
+		await sql`
+      insert into pins (id, gang_id, name, kind, color, lat, lng, notes, date_found, image)
+      values (
+        ${p.id}, ${p.gangId ?? null}, ${p.name}, ${p.kind ?? "graffiti"}, ${p.color ?? null},
+        ${p.lat}, ${p.lng}, ${p.notes ?? ""}, ${p.dateFound ?? ""}, ${p.image ?? ""}
+      )
+      on conflict (id) do nothing
+    `;
+	}
+}
+function isServerlessRuntime() {
+	if (typeof process === "undefined") return false;
+	return Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
+}
+async function maybeWriteSnapshot(board) {
+	if (isServerlessRuntime()) return;
+	if (board.territories.length === 0 && board.pins.length === 0) return;
+	try {
+		const { writeFile } = await import("node:fs/promises");
+		const { join } = await import("node:path");
+		await writeFile(join(process.cwd(), "src/lib/map/board-snapshot.json"), `${JSON.stringify({
+			gangs: board.gangs,
+			territories: board.territories,
+			pins: board.pins
+		}, null, 2)}\n`);
+	} catch {}
+}
+async function ensureSeed() {
+	const sql = await getSql();
+	await ensureRoster(sql);
+	await hydrateFromSnapshot(sql);
+}
+async function loadBoardData() {
+	await ensureSeed();
+	const sql = await getSql();
+	const gangs = await sql`select * from gangs order by name asc`;
+	const territories = await sql`select * from territories order by name asc`;
+	const pins = await sql`select * from pins order by name asc`;
+	const board = {
+		gangs: sortGangs(gangs.map(mapGang)),
+		territories: territories.map(mapTerritory),
+		pins: pins.map(mapPin)
+	};
+	maybeWriteSnapshot(board);
+	return board;
+}
+var listBoard = createServerFn({ method: "GET" }).handler(async () => loadBoardData());
+createServerFn({ method: "POST" }).validator((d) => gangInput.parse(d)).handler(async ({ data }) => {
+	return mapGang((await (await getSql())`
+      insert into gangs (id, name, tag, color, status, leader, description, members, notes, logo, updated_at)
+      values (
+        ${data.id}, ${data.name}, ${data.tag}, ${data.color}, ${data.status},
+        ${data.leader}, ${data.description}, ${data.members}, ${data.notes}, ${data.logo}, now()
+      )
+      on conflict (id) do update set
+        name = excluded.name,
+        tag = excluded.tag,
+        color = excluded.color,
+        status = excluded.status,
+        leader = excluded.leader,
+        description = excluded.description,
+        members = excluded.members,
+        notes = excluded.notes,
+        logo = excluded.logo,
+        updated_at = now()
+      returning *
+    `)[0]);
+});
+createServerFn({ method: "POST" }).validator((d) => object({ id: string().min(1) }).parse(d)).handler(async ({ data }) => {
+	const sql = await getSql();
+	await sql`update territories set gang_id = null where gang_id = ${data.id}`;
+	await sql`update pins set gang_id = null where gang_id = ${data.id}`;
+	await sql`delete from gangs where id = ${data.id}`;
+	return { id: data.id };
+});
+createServerFn({ method: "POST" }).validator((d) => territoryInput.parse(d)).handler(async ({ data }) => {
+	return mapTerritory((await (await getSql())`
+      insert into territories (id, gang_id, name, kind, color, polygon, notes, updated_at)
+      values (
+        ${data.id}, ${data.gangId}, ${data.name}, ${data.kind}, ${data.color},
+        ${JSON.stringify(data.polygon)}, ${data.notes}, now()
+      )
+      on conflict (id) do update set
+        gang_id = excluded.gang_id,
+        name = excluded.name,
+        kind = excluded.kind,
+        color = excluded.color,
+        polygon = excluded.polygon,
+        notes = excluded.notes,
+        updated_at = now()
+      returning *
+    `)[0]);
+});
+createServerFn({ method: "POST" }).validator((d) => object({ id: string().min(1) }).parse(d)).handler(async ({ data }) => {
+	await (await getSql())`delete from territories where id = ${data.id}`;
+	return { id: data.id };
+});
+createServerFn({ method: "POST" }).validator((d) => pinInput.parse(d)).handler(async ({ data }) => {
+	return mapPin((await (await getSql())`
+      insert into pins (id, gang_id, name, kind, color, lat, lng, notes, date_found, image, updated_at)
+      values (
+        ${data.id}, ${data.gangId}, ${data.name}, ${data.kind}, ${data.color},
+        ${data.lat}, ${data.lng}, ${data.notes}, ${data.dateFound}, ${data.image}, now()
+      )
+      on conflict (id) do update set
+        gang_id = excluded.gang_id,
+        name = excluded.name,
+        kind = excluded.kind,
+        color = excluded.color,
+        lat = excluded.lat,
+        lng = excluded.lng,
+        notes = excluded.notes,
+        date_found = excluded.date_found,
+        image = excluded.image,
+        updated_at = now()
+      returning *
+    `)[0]);
+});
+createServerFn({ method: "POST" }).validator((d) => object({ id: string().min(1) }).parse(d)).handler(async ({ data }) => {
+	await (await getSql())`delete from pins where id = ${data.id}`;
+	return { id: data.id };
+});
+var boardInput = object({
+	gangs: array(gangInput).max(200),
+	territories: array(territoryInput).max(400),
+	pins: array(pinInput).max(800)
+});
+createServerFn({ method: "POST" }).validator((d) => boardInput.parse(d)).handler(async ({ data }) => {
+	const sql = await getSql();
+	await sql`delete from pins`;
+	await sql`delete from territories`;
+	await sql`delete from gangs`;
+	for (const g of data.gangs) await sql`
+        insert into gangs (id, name, tag, color, status, leader, description, members, notes, logo, updated_at)
+        values (
+          ${g.id}, ${g.name}, ${g.tag}, ${g.color}, ${g.status},
+          ${g.leader}, ${g.description}, ${g.members}, ${g.notes}, ${g.logo}, now()
+        )
+        on conflict (id) do update set
+          name = excluded.name,
+          tag = excluded.tag,
+          color = excluded.color,
+          status = excluded.status,
+          leader = excluded.leader,
+          description = excluded.description,
+          members = excluded.members,
+          notes = excluded.notes,
+          logo = excluded.logo,
+          updated_at = now()
+      `;
+	for (const t of data.territories) await sql`
+        insert into territories (id, gang_id, name, kind, color, polygon, notes, updated_at)
+        values (
+          ${t.id}, ${t.gangId}, ${t.name}, ${t.kind}, ${t.color},
+          ${JSON.stringify(t.polygon)}, ${t.notes}, now()
+        )
+        on conflict (id) do update set
+          gang_id = excluded.gang_id,
+          name = excluded.name,
+          kind = excluded.kind,
+          color = excluded.color,
+          polygon = excluded.polygon,
+          notes = excluded.notes,
+          updated_at = now()
+      `;
+	for (const p of data.pins) await sql`
+        insert into pins (id, gang_id, name, kind, color, lat, lng, notes, date_found, image, updated_at)
+        values (
+          ${p.id}, ${p.gangId}, ${p.name}, ${p.kind}, ${p.color},
+          ${p.lat}, ${p.lng}, ${p.notes}, ${p.dateFound}, ${p.image}, now()
+        )
+        on conflict (id) do update set
+          gang_id = excluded.gang_id,
+          name = excluded.name,
+          kind = excluded.kind,
+          color = excluded.color,
+          lat = excluded.lat,
+          lng = excluded.lng,
+          notes = excluded.notes,
+          date_found = excluded.date_found,
+          image = excluded.image,
+          updated_at = now()
+      `;
+	const gangs = await sql`select * from gangs order by name asc`;
+	const territories = await sql`select * from territories order by name asc`;
+	const pins = await sql`select * from pins order by name asc`;
+	return {
+		gangs: sortGangs(gangs.map(mapGang)),
+		territories: territories.map(mapTerritory),
+		pins: pins.map(mapPin)
+	};
+});
+//#endregion
+//#region server/middleware/board-api.ts
+/**
+* Public JSON of the board so a redeploy can snapshot tags/turf
+* (`GET /api/board`) without going through the RPC client.
+*/
+async function boardApiMiddleware(event, next) {
+	if ((event.url.pathname.replace(/\/$/, "") || "/") !== "/api/board") return next();
+	if ((event.req.method ?? "GET").toUpperCase() !== "GET") return new Response("Method Not Allowed", { status: 405 });
+	try {
+		const board = await listBoard();
+		return new Response(JSON.stringify(board), { headers: {
+			"content-type": "application/json; charset=utf-8",
+			"cache-control": "no-store"
+		} });
+	} catch (err) {
+		const message = err instanceof Error ? err.message : "board failed";
+		return new Response(JSON.stringify({ error: message }), {
+			status: 500,
+			headers: { "content-type": "application/json; charset=utf-8" }
+		});
+	}
+}
 //#endregion
 //#region scripts/install-page.html?raw
 var install_page_default = "<!DOCTYPE html>\n<html lang=\"en\" class=\"device-desktop\">\n  <head>\n    <meta charset=\"utf-8\" />\n    <meta\n      name=\"viewport\"\n      content=\"width=device-width, initial-scale=1, viewport-fit=cover\"\n    />\n    <meta name=\"color-scheme\" content=\"dark\" />\n    <meta name=\"theme-color\" content=\"#000000\" />\n    <meta name=\"apple-mobile-web-app-status-bar-style\" content=\"black\" />\n    <meta name=\"apple-mobile-web-app-title\" content=\"{{APP_NAME}}\" />\n    <title>Add {{APP_NAME}} to your Home Screen</title>\n    <link rel=\"manifest\" href=\"/__grok/manifest.webmanifest\" />\n    <link rel=\"apple-touch-icon\" href=\"/__grok/icon-180.png\" />\n    <link rel=\"stylesheet\" href=\"/__grok/install/styles.css\" />\n    <script>\n      (function () {\n        var ua = navigator.userAgent || \"\";\n        var touch = navigator.maxTouchPoints || 0;\n        var isiPad = /iPad/.test(ua) || (/Macintosh/.test(ua) && touch > 1);\n        var isiPhone = /iPhone|iPod/.test(ua);\n        var isIOS = isiPhone || isiPad;\n        var isAndroid = /Android/i.test(ua);\n        var isAndroidPhone = isAndroid && /Mobile/i.test(ua);\n        var isAndroidTablet = isAndroid && !/Mobile/i.test(ua);\n        var minSide = Math.min(screen.width || 0, screen.height || 0);\n        var maxSide = Math.max(screen.width || 0, screen.height || 0);\n\n        var type = \"desktop\";\n        if (isiPhone) type = \"phone\";\n        else if (isiPad || isAndroidTablet) type = \"tablet\";\n        else if (isAndroidPhone) type = \"phone\";\n        else if (touch > 0 && minSide > 0 && minSide <= 500) type = \"phone\";\n        else if (touch > 0 && minSide > 500 && maxSide <= 1400) type = \"tablet\";\n\n        var iosMajor = null;\n        var osToken = null;\n        var safariToken = null;\n        var iphoneOs = ua.match(/iPhone OS (\\d+)[._]/);\n        var ipadOs = ua.match(/CPU OS (\\d+)[._](\\d+) like Mac OS X/);\n        var safariVer = ua.match(/Version\\/(\\d+)[._]/);\n        if (iphoneOs) osToken = parseInt(iphoneOs[1], 10);\n        else if (ipadOs) osToken = parseInt(ipadOs[1], 10);\n        if (isIOS && safariVer) safariToken = parseInt(safariVer[1], 10);\n        if (osToken != null || safariToken != null) {\n          iosMajor = Math.max(osToken || 0, safariToken || 0);\n        }\n\n        var root = document.documentElement;\n        var classes = [\"device-\" + type];\n        if (iosMajor != null) {\n          root.dataset.ios = String(iosMajor);\n          classes.push(iosMajor >= 27 ? \"ios-27-plus\" : \"ios-below-27\");\n        }\n        root.className = classes.join(\" \");\n      })();\n    <\/script>\n  </head>\n  <body>\n    <div class=\"page\">\n      <header class=\"powered\" aria-label=\"Powered by Grok\">\n        <span class=\"powered-by\">Powered by</span>\n        <span class=\"powered-brand\">\n          <img\n            class=\"grok-logo\"\n            src=\"/__grok/install/assets/homescreen/logo-grok.svg\"\n            width=\"14\"\n            height=\"14\"\n            alt=\"\"\n          />\n          <span class=\"powered-grok\">Grok</span>\n        </span>\n      </header>\n\n      <main class=\"content\">\n        <div class=\"ob\" aria-hidden=\"true\">\n          <img\n            class=\"ob-img ob-phone\"\n            src=\"/__grok/install/assets/homescreen/ob-phone.png\"\n            width=\"338\"\n            height=\"294\"\n            alt=\"\"\n          />\n          <img\n            class=\"ob-img ob-ipad\"\n            src=\"/__grok/install/assets/homescreen/ob-ipad.png\"\n            width=\"634\"\n            height=\"294\"\n            alt=\"\"\n          />\n        </div>\n\n        <section class=\"copy\">\n          <h1>Add {{APP_NAME}} to your&nbsp;Home&nbsp;Screen</h1>\n\n          <div class=\"steps\">\n            <p class=\"step step-tap step-ios27\">\n              <span class=\"muted\">Tap</span>\n              <span class=\"glass glass--icon\" aria-hidden=\"true\">\n                <img src=\"/__grok/install/assets/homescreen/glass-puzzle.svg\" width=\"24\" height=\"24\" alt=\"\" />\n              </span>\n              <span class=\"muted loc loc-phone\">in the bottom bar, then</span>\n              <span class=\"muted loc loc-ipad\">in the tool bar, then</span>\n              <span class=\"glass glass--icon\" aria-hidden=\"true\">\n                <img src=\"/__grok/install/assets/homescreen/glass-share.svg\" width=\"24\" height=\"24\" alt=\"\" />\n              </span>\n            </p>\n\n            <p class=\"step step-tap step-ios-legacy\">\n              <span class=\"muted\">Tap</span>\n              <span class=\"glass glass--icon\" aria-hidden=\"true\">\n                <img src=\"/__grok/install/assets/homescreen/glass-share.svg\" width=\"24\" height=\"24\" alt=\"\" />\n              </span>\n              <span class=\"muted loc loc-phone\">in the bottom bar</span>\n              <span class=\"muted loc loc-ipad\">in the tool bar</span>\n            </p>\n\n            <p class=\"step step-select\">\n              <span class=\"muted\">Select</span>\n              <span class=\"add-label\">\n                <img\n                  class=\"plus-icon\"\n                  src=\"/__grok/install/assets/homescreen/plus.svg\"\n                  width=\"16\"\n                  height=\"16\"\n                  alt=\"\"\n                />\n                <span class=\"add-text\">Add to Home Screen</span>\n              </span>\n            </p>\n          </div>\n        </section>\n      </main>\n\n      <main class=\"content content-desktop\">\n        <section class=\"copy\">\n          <h1>Open this link on your iPhone&nbsp;or&nbsp;iPad</h1>\n          <p class=\"desktop-note\">\n            This page shows how to add {{APP_NAME}} to an iOS Home Screen.\n          </p>\n          <a class=\"desktop-open\" href=\"{{APP_URL}}\">Open {{APP_NAME}}</a>\n        </section>\n      </main>\n    </div>\n  </body>\n</html>\n";
@@ -471,7 +1351,7 @@ var findRoute = /* @__PURE__ */ (() => {
 		};
 	});
 })();
-var globalMiddleware = [toEventHandler(grokPwaMiddleware)].filter(Boolean);
+var globalMiddleware = [toEventHandler(boardApiMiddleware), toEventHandler(grokPwaMiddleware)].filter(Boolean);
 //#endregion
 //#region node_modules/nitro/dist/runtime/internal/error/prod.mjs
 var errorHandler = (error, event) => {

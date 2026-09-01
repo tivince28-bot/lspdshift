@@ -1,0 +1,302 @@
+{
+  "gangs": [
+    {
+      "id": "gang-gsf",
+      "name": "Families",
+      "tag": "FAM",
+      "color": "#2ecc71",
+      "status": "active",
+      "leader": "",
+      "description": "South LS classic. Davis and Grove.",
+      "members": "",
+      "notes": "",
+      "logo": "",
+      "createdAt": "2026-09-01T12:00:54.385Z",
+      "updatedAt": "2026-09-01T12:00:54.385Z"
+    },
+    {
+      "id": "gang-vagos",
+      "name": "VAGOS",
+      "tag": "VGS",
+      "color": "#f4d03f",
+      "status": "active",
+      "leader": "",
+      "description": "East side — Rancho to El Burro.",
+      "members": "",
+      "notes": "",
+      "logo": "",
+      "createdAt": "2026-09-01T12:00:54.387Z",
+      "updatedAt": "2026-09-01T12:00:54.387Z"
+    },
+    {
+      "id": "gang-88",
+      "name": "88",
+      "tag": "88",
+      "color": "#e67e22",
+      "status": "active",
+      "leader": "",
+      "description": "",
+      "members": "",
+      "notes": "",
+      "logo": "",
+      "createdAt": "2026-09-01T12:17:24.532Z",
+      "updatedAt": "2026-09-01T12:17:24.532Z"
+    },
+    {
+      "id": "gang-r60",
+      "name": "Rolling 60S",
+      "tag": "R60",
+      "color": "#1d4ed8",
+      "status": "active",
+      "leader": "",
+      "description": "",
+      "members": "",
+      "notes": "",
+      "logo": "",
+      "createdAt": "2026-09-01T12:17:24.533Z",
+      "updatedAt": "2026-09-01T12:17:24.533Z"
+    },
+    {
+      "id": "gang-lost-mc",
+      "name": "Lost MC",
+      "tag": "LMC",
+      "color": "#111111",
+      "status": "active",
+      "leader": "",
+      "description": "",
+      "members": "",
+      "notes": "",
+      "logo": "",
+      "createdAt": "2026-09-01T12:17:24.534Z",
+      "updatedAt": "2026-09-01T12:17:24.534Z"
+    },
+    {
+      "id": "gang-cdi",
+      "name": "Cartel de la isla",
+      "tag": "CDI",
+      "color": "#f5a3c7",
+      "status": "active",
+      "leader": "",
+      "description": "",
+      "members": "",
+      "notes": "",
+      "logo": "",
+      "createdAt": "2026-09-01T12:17:24.539Z",
+      "updatedAt": "2026-09-01T12:17:24.539Z"
+    },
+    {
+      "id": "gang-duvals",
+      "name": "Duvals",
+      "tag": "DVL",
+      "color": "#166534",
+      "status": "active",
+      "leader": "",
+      "description": "",
+      "members": "",
+      "notes": "",
+      "logo": "",
+      "createdAt": "2026-09-01T12:17:24.540Z",
+      "updatedAt": "2026-09-01T12:17:24.540Z"
+    },
+    {
+      "id": "gang-stb",
+      "name": "Satan's bastards",
+      "tag": "STB",
+      "color": "#dc2626",
+      "status": "active",
+      "leader": "",
+      "description": "",
+      "members": "",
+      "notes": "",
+      "logo": "",
+      "createdAt": "2026-09-01T12:17:24.541Z",
+      "updatedAt": "2026-09-01T12:17:24.541Z"
+    },
+    {
+      "id": "gang-navarro",
+      "name": "NAVARRO",
+      "tag": "NAV",
+      "color": "#9a8b1a",
+      "status": "active",
+      "leader": "",
+      "description": "",
+      "members": "",
+      "notes": "",
+      "logo": "",
+      "createdAt": "2026-09-01T12:17:24.541Z",
+      "updatedAt": "2026-09-01T12:17:24.541Z"
+    },
+    {
+      "id": "gang-otg",
+      "name": "OTG",
+      "tag": "OTG",
+      "color": "#22d3ee",
+      "status": "active",
+      "leader": "",
+      "description": "",
+      "members": "",
+      "notes": "",
+      "logo": "",
+      "createdAt": "2026-09-01T12:17:24.542Z",
+      "updatedAt": "2026-09-01T12:17:24.542Z"
+    },
+    {
+      "id": "gang-crimson",
+      "name": "Crimson District",
+      "tag": "CRD",
+      "color": "#c084fc",
+      "status": "active",
+      "leader": "",
+      "description": "",
+      "members": "",
+      "notes": "",
+      "logo": "",
+      "createdAt": "2026-09-01T12:17:24.542Z",
+      "updatedAt": "2026-09-01T12:17:24.542Z"
+    },
+    {
+      "id": "gang-ballas",
+      "name": "Ballas",
+      "tag": "BLS",
+      "color": "#9b59b6",
+      "status": "active",
+      "leader": "",
+      "description": "Davis / Chamberlain.",
+      "members": "",
+      "notes": "",
+      "logo": "",
+      "createdAt": "2026-09-01T12:00:54.386Z",
+      "updatedAt": "2026-09-01T12:00:54.386Z"
+    }
+  ],
+  "territories": [
+    {
+      "id": "turf-ballas-chamberlain",
+      "gangId": "gang-ballas",
+      "name": "Chamberlain Hills",
+      "kind": "turf",
+      "color": null,
+      "polygon": [
+        {
+          "lat": -1500,
+          "lng": -280
+        },
+        {
+          "lat": -1500,
+          "lng": -40
+        },
+        {
+          "lat": -1680,
+          "lng": -40
+        },
+        {
+          "lat": -1680,
+          "lng": -280
+        }
+      ],
+      "notes": "Chamberlain and the Forum Drive cut.",
+      "createdAt": "2026-09-01T12:00:54.388Z",
+      "updatedAt": "2026-09-01T12:00:54.388Z"
+    },
+    {
+      "id": "turf-gsf-davis",
+      "gangId": "gang-gsf",
+      "name": "Davis / Grove",
+      "kind": "turf",
+      "color": null,
+      "polygon": [
+        {
+          "lat": -1680,
+          "lng": 40
+        },
+        {
+          "lat": -1680,
+          "lng": 230
+        },
+        {
+          "lat": -1860,
+          "lng": 230
+        },
+        {
+          "lat": -1860,
+          "lng": 40
+        }
+      ],
+      "notes": "Grove Street and the Davis blocks.",
+      "createdAt": "2026-09-01T12:00:54.387Z",
+      "updatedAt": "2026-09-01T12:00:54.387Z"
+    },
+    {
+      "id": "turf-vagos-rancho",
+      "gangId": "gang-vagos",
+      "name": "Rancho / El Burro",
+      "kind": "claimed",
+      "color": null,
+      "polygon": [
+        {
+          "lat": -1740,
+          "lng": 280
+        },
+        {
+          "lat": -1740,
+          "lng": 560
+        },
+        {
+          "lat": -1980,
+          "lng": 560
+        },
+        {
+          "lat": -1980,
+          "lng": 280
+        }
+      ],
+      "notes": "East LS yellow.",
+      "createdAt": "2026-09-01T12:00:54.389Z",
+      "updatedAt": "2026-09-01T12:00:54.389Z"
+    }
+  ],
+  "pins": [
+    {
+      "id": "pin-vagos-elburro",
+      "gangId": "gang-vagos",
+      "name": "El Burro stencil",
+      "kind": "stencil",
+      "color": null,
+      "lat": -1923,
+      "lng": 1491,
+      "notes": "",
+      "dateFound": "2026-01-01",
+      "image": "",
+      "createdAt": "2026-09-01T12:00:54.391Z",
+      "updatedAt": "2026-09-01T12:00:54.391Z"
+    },
+    {
+      "id": "pin-ballas-forum",
+      "gangId": "gang-ballas",
+      "name": "Forum Drive mural",
+      "kind": "mural",
+      "color": null,
+      "lat": -1595,
+      "lng": -165,
+      "notes": "",
+      "dateFound": "2026-01-01",
+      "image": "",
+      "createdAt": "2026-09-01T12:00:54.391Z",
+      "updatedAt": "2026-09-01T12:00:54.391Z"
+    },
+    {
+      "id": "pin-gsf-grove",
+      "gangId": "gang-gsf",
+      "name": "Grove Street throw-up",
+      "kind": "throw-up",
+      "color": null,
+      "lat": -1750,
+      "lng": 112,
+      "notes": "Green GSF on the wall by the house.",
+      "dateFound": "2026-01-01",
+      "image": "",
+      "createdAt": "2026-09-01T12:00:54.390Z",
+      "updatedAt": "2026-09-01T12:00:54.390Z"
+    }
+  ]
+}

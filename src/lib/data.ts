@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getSql } from "@/lib/db";
+import boardSnapshot from "@/lib/map/board-snapshot.json";
 import { SEED_GANGS, sortGangs } from "@/lib/map/seed";
 import type { Board, Gang, LatLng, Pin, Territory } from "@/lib/types";
 
@@ -180,25 +181,109 @@ async function ensureRoster(
   `;
 }
 
+async function hydrateFromSnapshot(
+  sql: Awaited<ReturnType<typeof getSql>>,
+): Promise<void> {
+  const snap = boardSnapshot as Board;
+  const turfN = await sql<{ n: number }>`select count(*)::int as n from territories`;
+  const pinN = await sql<{ n: number }>`select count(*)::int as n from pins`;
+  if ((turfN[0]?.n ?? 0) > 0 || (pinN[0]?.n ?? 0) > 0) return;
+  const territories = Array.isArray(snap.territories) ? snap.territories : [];
+  const pins = Array.isArray(snap.pins) ? snap.pins : [];
+  const gangs = Array.isArray(snap.gangs) ? snap.gangs : [];
+  if (territories.length === 0 && pins.length === 0) return;
+
+  for (const g of gangs) {
+    if (!g?.id || !g?.name || !g?.color) continue;
+    await sql`
+      insert into gangs (id, name, tag, color, status, leader, description, members, notes, logo)
+      values (
+        ${g.id}, ${g.name}, ${g.tag ?? ""}, ${g.color}, ${g.status ?? "active"},
+        ${g.leader ?? ""}, ${g.description ?? ""}, ${g.members ?? ""}, ${g.notes ?? ""}, ${g.logo ?? ""}
+      )
+      on conflict (id) do nothing
+    `;
+  }
+  for (const t of territories) {
+    if (!t?.id || !t?.name || !Array.isArray(t.polygon)) continue;
+    await sql`
+      insert into territories (id, gang_id, name, kind, color, polygon, notes)
+      values (
+        ${t.id}, ${t.gangId ?? null}, ${t.name}, ${t.kind ?? "turf"}, ${t.color ?? null},
+        ${JSON.stringify(t.polygon)}, ${t.notes ?? ""}
+      )
+      on conflict (id) do nothing
+    `;
+  }
+  for (const p of pins) {
+    if (!p?.id || !p?.name || typeof p.lat !== "number" || typeof p.lng !== "number") continue;
+    await sql`
+      insert into pins (id, gang_id, name, kind, color, lat, lng, notes, date_found, image)
+      values (
+        ${p.id}, ${p.gangId ?? null}, ${p.name}, ${p.kind ?? "graffiti"}, ${p.color ?? null},
+        ${p.lat}, ${p.lng}, ${p.notes ?? ""}, ${p.dateFound ?? ""}, ${p.image ?? ""}
+      )
+      on conflict (id) do nothing
+    `;
+  }
+}
+
+function isServerlessRuntime(): boolean {
+  if (typeof process === "undefined") return false;
+  return Boolean(
+    process.env.VERCEL ||
+      process.env.AWS_LAMBDA_FUNCTION_NAME ||
+      process.env.LAMBDA_TASK_ROOT,
+  );
+}
+
+async function maybeWriteSnapshot(board: Board): Promise<void> {
+  if (isServerlessRuntime()) return;
+  if (board.territories.length === 0 && board.pins.length === 0) return;
+  try {
+    const { writeFile } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    await writeFile(
+      join(process.cwd(), "src/lib/map/board-snapshot.json"),
+      `${JSON.stringify(
+        {
+          gangs: board.gangs,
+          territories: board.territories,
+          pins: board.pins,
+        },
+        null,
+        2,
+      )}\n`,
+    );
+  } catch {
+    /* preview-only convenience */
+  }
+}
+
 async function ensureSeed(): Promise<void> {
   const sql = await getSql();
   await ensureRoster(sql);
+  await hydrateFromSnapshot(sql);
+}
+
+async function loadBoardData(): Promise<Board> {
+  await ensureSeed();
+  const sql = await getSql();
+  const gangs = await sql<GangRow>`select * from gangs order by name asc`;
+  const territories =
+    await sql<TerritoryRow>`select * from territories order by name asc`;
+  const pins = await sql<PinRow>`select * from pins order by name asc`;
+  const board: Board = {
+    gangs: sortGangs(gangs.map(mapGang)),
+    territories: territories.map(mapTerritory),
+    pins: pins.map(mapPin),
+  };
+  void maybeWriteSnapshot(board);
+  return board;
 }
 
 export const listBoard = createServerFn({ method: "GET" }).handler(
-  async (): Promise<Board> => {
-    await ensureSeed();
-    const sql = await getSql();
-    const gangs = await sql<GangRow>`select * from gangs order by name asc`;
-    const territories =
-      await sql<TerritoryRow>`select * from territories order by name asc`;
-    const pins = await sql<PinRow>`select * from pins order by name asc`;
-    return {
-      gangs: sortGangs(gangs.map(mapGang)),
-      territories: territories.map(mapTerritory),
-      pins: pins.map(mapPin),
-    };
-  },
+  async (): Promise<Board> => loadBoardData(),
 );
 
 export const upsertGang = createServerFn({ method: "POST" })
