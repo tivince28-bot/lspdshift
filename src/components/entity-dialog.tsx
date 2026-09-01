@@ -594,11 +594,62 @@ export function HelpDialog({
             add a point. Double-click a corner to remove it. Drag any tag to move it.
           </li>
           <li>
-            The board is public and shared — no sign-in. Anyone can add turf and tags. Export JSON for a backup.
+            <span className="font-medium text-fg">Backup</span> — every edit is
+            saved in this browser. If the public board resets, you can restore
+            from here. Also hit Export (arrow down) and keep the JSON file.
+          </li>
+          <li>
+            The board is public and shared — no sign-in. Anyone can add turf and tags.
           </li>
         </ul>
         <div className="flex justify-end pt-2">
           <Button onClick={() => onOpenChange(false)}>Got it</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function RestoreBackupDialog({
+  open,
+  gangs,
+  territories,
+  pins,
+  savedAt,
+  onRestore,
+  onSkip,
+}: {
+  open: boolean;
+  gangs: number;
+  territories: number;
+  pins: number;
+  savedAt: string;
+  onRestore: () => void;
+  onSkip: () => void;
+}) {
+  const when = savedAt
+    ? new Date(savedAt).toLocaleString()
+    : "this browser";
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onSkip(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Restore local backup?</DialogTitle>
+          <DialogDescription>
+            The public board looks empty, but this browser still has a copy.
+          </DialogDescription>
+        </DialogHeader>
+        <p className="text-sm text-fg">
+          {gangs} gangs · {territories} turf · {pins} tags
+        </p>
+        <p className="text-xs text-muted">Saved {when}</p>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="ghost" onClick={onSkip}>
+            Keep empty board
+          </Button>
+          <Button type="button" onClick={onRestore}>
+            Restore
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

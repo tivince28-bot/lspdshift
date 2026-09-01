@@ -1,5 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import {
+  backupIsRicher,
+  dismissRestoreOffer,
+  loadBoardBackup,
+  restoreWasDismissed,
+  saveBoardBackup,
+  type BoardBackup,
+} from "@/lib/backup";
 import {
   deleteGang,
   deletePin,
@@ -57,12 +65,37 @@ function pinPayload(p: Omit<Pin, "createdAt" | "updatedAt">) {
 export function useBoard() {
   const [board, setBoard] = useState<Board | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [restoreOffer, setRestoreOffer] = useState<BoardBackup | null>(null);
+  const checkedBackup = useRef(false);
+
+  const commit = useCallback((next: Board) => {
+    setBoard(next);
+    void saveBoardBackup(next);
+  }, []);
 
   const reload = useCallback(async () => {
     try {
       const next = await listBoard();
-      setBoard(next);
       setError(null);
+      if (!checkedBackup.current) {
+        checkedBackup.current = true;
+        const bak = await loadBoardBackup();
+        if (
+          bak &&
+          backupIsRicher(bak, next) &&
+          !restoreWasDismissed()
+        ) {
+          setRestoreOffer(bak);
+          setBoard(next);
+          return;
+        }
+        setBoard(next);
+        if (!bak || !backupIsRicher(bak, next)) {
+          void saveBoardBackup(next);
+        }
+        return;
+      }
+      setBoard(next);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not load the board";
       setError(message);
@@ -88,12 +121,14 @@ export function useBoard() {
         setBoard((b) => {
           if (!b) return b;
           const exists = b.gangs.some((x) => x.id === saved.id);
-          return {
+          const next = {
             ...b,
             gangs: exists
               ? b.gangs.map((x) => (x.id === saved.id ? saved : x))
               : [...b.gangs, saved],
           };
+          void saveBoardBackup(next);
+          return next;
         });
       } catch {
         toast.error("Could not save gang");
@@ -110,12 +145,14 @@ export function useBoard() {
         setBoard((b) => {
           if (!b) return b;
           const exists = b.territories.some((x) => x.id === saved.id);
-          return {
+          const next = {
             ...b,
             territories: exists
               ? b.territories.map((x) => (x.id === saved.id ? saved : x))
               : [...b.territories, saved],
           };
+          void saveBoardBackup(next);
+          return next;
         });
       } catch {
         toast.error("Could not save territory");
@@ -132,12 +169,14 @@ export function useBoard() {
         setBoard((b) => {
           if (!b) return b;
           const exists = b.pins.some((x) => x.id === saved.id);
-          return {
+          const next = {
             ...b,
             pins: exists
               ? b.pins.map((x) => (x.id === saved.id ? saved : x))
               : [...b.pins, saved],
           };
+          void saveBoardBackup(next);
+          return next;
         });
       } catch {
         toast.error("Could not save tag");
@@ -153,13 +192,15 @@ export function useBoard() {
         await deleteGang({ data: { id } });
         setBoard((b) => {
           if (!b) return b;
-          return {
+          const next = {
             gangs: b.gangs.filter((g) => g.id !== id),
             territories: b.territories.map((t) =>
               t.gangId === id ? { ...t, gangId: null } : t,
             ),
             pins: b.pins.map((p) => (p.gangId === id ? { ...p, gangId: null } : p)),
           };
+          void saveBoardBackup(next);
+          return next;
         });
       } catch {
         toast.error("Could not remove gang");
@@ -173,9 +214,15 @@ export function useBoard() {
     async (id: string) => {
       try {
         await deleteTerritory({ data: { id } });
-        setBoard((b) =>
-          b ? { ...b, territories: b.territories.filter((t) => t.id !== id) } : b,
-        );
+        setBoard((b) => {
+          if (!b) return b;
+          const next = {
+            ...b,
+            territories: b.territories.filter((t) => t.id !== id),
+          };
+          void saveBoardBackup(next);
+          return next;
+        });
       } catch {
         toast.error("Could not remove territory");
         await reload();
@@ -188,7 +235,12 @@ export function useBoard() {
     async (id: string) => {
       try {
         await deletePin({ data: { id } });
-        setBoard((b) => (b ? { ...b, pins: b.pins.filter((p) => p.id !== id) } : b));
+        setBoard((b) => {
+          if (!b) return b;
+          const next = { ...b, pins: b.pins.filter((p) => p.id !== id) };
+          void saveBoardBackup(next);
+          return next;
+        });
       } catch {
         toast.error("Could not remove tag");
         await reload();
@@ -207,14 +259,27 @@ export function useBoard() {
             pins: incoming.pins.map(pinPayload),
           },
         });
-        setBoard(next);
+        commit(next);
       } catch {
         toast.error("Could not import that file");
         await reload();
       }
     },
-    [reload],
+    [commit, reload],
   );
+
+  const applyRestore = useCallback(async () => {
+    if (!restoreOffer) return;
+    const incoming = restoreOffer;
+    setRestoreOffer(null);
+    await replaceBoard(incoming);
+    toast("Board restored from this browser");
+  }, [restoreOffer, replaceBoard]);
+
+  const skipRestore = useCallback(() => {
+    dismissRestoreOffer();
+    setRestoreOffer(null);
+  }, []);
 
   return {
     board,
@@ -223,6 +288,9 @@ export function useBoard() {
     pins: board?.pins ?? [],
     isLoading: !board && !error,
     error,
+    restoreOffer,
+    applyRestore,
+    skipRestore,
     reload,
     saveGang,
     saveTerritory,

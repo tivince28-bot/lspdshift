@@ -17,6 +17,7 @@ import {
   GangFormDialog,
   HelpDialog,
   PinFormDialog,
+  RestoreBackupDialog,
   TerritoryFormDialog,
 } from "@/components/entity-dialog";
 import { InspectorPanel } from "@/components/inspector-panel";
@@ -62,7 +63,7 @@ type FocusTarget =
 
 export function Desk() {
   const board = useBoard();
-  const { gangs, territories, pins, isLoading, error, reload } = board;
+  const { gangs, territories, pins, isLoading, error, reload, restoreOffer, applyRestore, skipRestore } = board;
 
   const [tool, setTool] = useState<DrawTool>("pan");
   const [selection, setSelection] = useState<MapSelection>(null);
@@ -382,7 +383,8 @@ export function Desk() {
               size="icon-sm"
               variant="ghost"
               onClick={exportJson}
-              aria-label="Export"
+              aria-label="Export backup"
+              title="Download a backup file"
             >
               <Download className="size-4" />
             </Button>
@@ -561,6 +563,15 @@ export function Desk() {
           }}
         />
         <HelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
+        <RestoreBackupDialog
+          open={Boolean(restoreOffer)}
+          gangs={restoreOffer?.gangs.length ?? 0}
+          territories={restoreOffer?.territories.length ?? 0}
+          pins={restoreOffer?.pins.length ?? 0}
+          savedAt={restoreOffer?.savedAt ?? ""}
+          onRestore={() => void applyRestore()}
+          onSkip={skipRestore}
+        />
         <FiltersDialog
           open={filtersOpen}
           onOpenChange={setFiltersOpen}
