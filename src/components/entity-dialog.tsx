@@ -10,6 +10,7 @@ import {
 import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SelectField } from "@/components/ui/select-field";
+import { ExpandableImage } from "@/components/image-lightbox";
 import { cn, readImageFile, todayIsoDate } from "@/lib/utils";
 import {
   GANG_COLOR_PRESETS,
@@ -66,51 +67,80 @@ export function ImageField({
   label,
   value,
   onChange,
+  layout = "row",
 }: {
   label: string;
   value: string;
   onChange: (dataUrl: string) => void;
+  layout?: "row" | "hero";
 }) {
+  const fileInput = (
+    <input
+      type="file"
+      accept="image/*"
+      className="text-xs text-muted file:mr-2 file:rounded-md file:border-0 file:bg-surface-2 file:px-2 file:py-1 file:text-xs file:text-fg"
+      onChange={(e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        void readImageFile(file)
+          .then(onChange)
+          .catch(() => {});
+        e.target.value = "";
+      }}
+    />
+  );
+  const remove = value ? (
+    <button
+      type="button"
+      className="text-left text-xs text-muted hover:text-fg"
+      onClick={() => onChange("")}
+    >
+      Remove
+    </button>
+  ) : null;
+
   return (
     <div className="space-y-1.5">
       <Label>{label}</Label>
-      <div className="flex items-center gap-3">
-        {value ? (
-          <img
-            src={value}
-            alt=""
-            className="size-12 rounded-md object-cover shadow-[var(--shadow-border)]"
-          />
-        ) : (
-          <span className="grid size-12 place-items-center rounded-md bg-surface-2 text-xs text-subtle">
-            none
-          </span>
-        )}
-        <div className="flex flex-col gap-1">
-          <input
-            type="file"
-            accept="image/*"
-            className="text-xs text-muted file:mr-2 file:rounded-md file:border-0 file:bg-surface-2 file:px-2 file:py-1 file:text-xs file:text-fg"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (!file) return;
-              void readImageFile(file)
-                .then(onChange)
-                .catch(() => {});
-              e.target.value = "";
-            }}
-          />
+      {layout === "hero" ? (
+        <div className="space-y-2">
           {value ? (
-            <button
-              type="button"
-              className="text-left text-xs text-muted hover:text-fg"
-              onClick={() => onChange("")}
-            >
-              Remove
-            </button>
-          ) : null}
+            <ExpandableImage
+              src={value}
+              alt={label}
+              className="h-40 w-full rounded-md bg-surface-2 shadow-[var(--shadow-border)]"
+              fit="contain"
+            />
+          ) : (
+            <span className="grid h-20 w-full place-items-center rounded-md bg-surface-2 text-xs text-subtle">
+              no photo
+            </span>
+          )}
+          <div className="flex flex-col gap-1">
+            {fileInput}
+            {remove}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="flex items-center gap-3">
+          {value ? (
+            <ExpandableImage
+              src={value}
+              alt={label}
+              className="size-12 shrink-0 rounded-md shadow-[var(--shadow-border)]"
+              showHint={false}
+            />
+          ) : (
+            <span className="grid size-12 place-items-center rounded-md bg-surface-2 text-xs text-subtle">
+              none
+            </span>
+          )}
+          <div className="flex flex-col gap-1">
+            {fileInput}
+            {remove}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -560,7 +590,8 @@ export function HelpDialog({
           </li>
           <li>
             <span className="font-medium text-fg">Reshape</span> — select a territory,
-            then drag the corner dots. Drag any tag to move it.
+            then drag the solid corner dots. Drag or click a hollow edge dot to
+            add a point. Double-click a corner to remove it. Drag any tag to move it.
           </li>
           <li>
             The board is public and shared — no sign-in. Anyone can add turf and tags. Export JSON for a backup.

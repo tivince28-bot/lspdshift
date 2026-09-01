@@ -175,6 +175,35 @@ body,
   background: #fff;
 }
 
+.ls-mid-wrap {
+  background: none !important;
+  border: none !important;
+  cursor: copy !important;
+  touch-action: none;
+}
+
+.ls-mid-wrap:active,
+.ls-mid-wrap.leaflet-marker-dragging {
+  cursor: grabbing !important;
+}
+
+.ls-mid {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: color-mix(in oklab, #f4f1ea 35%, transparent);
+  border: 2px dashed #f4f1ea;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+.ls-mid-wrap:hover .ls-mid {
+  width: 14px;
+  height: 14px;
+  background: #f4f1ea;
+  border-style: solid;
+}
+
 .ls-toast {
   background: var(--color-surface) !important;
   color: var(--color-fg) !important;

@@ -70,6 +70,10 @@ function pinStyle(color: string, selected: boolean): L.CircleMarkerOptions {
   };
 }
 
+function midPoint(a: LatLng, b: LatLng): LatLng {
+  return { lat: (a.lat + b.lat) / 2, lng: (a.lng + b.lng) / 2 };
+}
+
 function closeEnough(
   L: LeafletNS,
   a: L.LatLng,
@@ -174,6 +178,7 @@ export function MapCanvas(props: Props) {
   const drawLayerRef = useRef<L.LayerGroup | null>(null);
   const vertexLayerRef = useRef<L.LayerGroup | null>(null);
   const vertexMarkersRef = useRef<L.Marker[]>([]);
+  const midMarkersRef = useRef<L.Marker[]>([]);
   const vertexTerritoryIdRef = useRef<string | null>(null);
   const turfById = useRef(new Map<string, L.Polygon>());
   const pinById = useRef(new Map<string, L.CircleMarker>());
@@ -456,6 +461,13 @@ export function MapCanvas(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function clearVertexHandles() {
+    vertexLayerRef.current?.clearLayers();
+    vertexMarkersRef.current = [];
+    midMarkersRef.current = [];
+    vertexTerritoryIdRef.current = null;
+  }
+
   function syncVertices() {
     const L = Lref.current;
     const map = mapRef.current;
@@ -465,51 +477,39 @@ export function MapCanvas(props: Props) {
     const p = propsRef.current;
     const sel = p.selection;
     if (p.tool !== "pan" || sel?.type !== "territory") {
-      if (vertexMarkersRef.current.length) {
-        layer.clearLayers();
-        vertexMarkersRef.current = [];
-        vertexTerritoryIdRef.current = null;
+      if (vertexMarkersRef.current.length || midMarkersRef.current.length) {
+        clearVertexHandles();
       }
       return;
     }
     const t = p.territories.find((x) => x.id === sel.id);
     if (!t) {
-      layer.clearLayers();
-      vertexMarkersRef.current = [];
-      vertexTerritoryIdRef.current = null;
+      clearVertexHandles();
       return;
     }
     const poly = turfById.current.get(t.id);
-    workingPolyRef.current = t.polygon.map((pt) => ({ ...pt }));
+    const pts = t.polygon.map((pt) => ({ ...pt }));
+    workingPolyRef.current = pts;
 
     const sameShape =
       vertexTerritoryIdRef.current === t.id &&
-      vertexMarkersRef.current.length === t.polygon.length;
+      vertexMarkersRef.current.length === pts.length &&
+      midMarkersRef.current.length === pts.length;
     if (sameShape) {
-      t.polygon.forEach((pt, i) => {
+      pts.forEach((pt, i) => {
         vertexMarkersRef.current[i]?.setLatLng([pt.lat, pt.lng]);
+        const mid = midPoint(pt, pts[(i + 1) % pts.length]);
+        midMarkersRef.current[i]?.setLatLng([mid.lat, mid.lng]);
       });
       return;
     }
 
     layer.clearLayers();
     vertexMarkersRef.current = [];
+    midMarkersRef.current = [];
     vertexTerritoryIdRef.current = t.id;
-    t.polygon.forEach((pt, i) => {
-      const marker = L.marker([pt.lat, pt.lng], {
-        draggable: true,
-        autoPan: true,
-        autoPanPadding: [48, 48],
-        keyboard: false,
-        pane: "vertices",
-        zIndexOffset: 1200 + i,
-        icon: L.divIcon({
-          className: "ls-vertex-wrap",
-          html: `<span class="ls-vertex-hit"><span class="ls-vertex"></span></span>`,
-          iconSize: [36, 36],
-          iconAnchor: [18, 18],
-        }),
-      });
+
+    const bindHandle = (marker: L.Marker) => {
       marker.on("mousedown", (e: L.LeafletMouseEvent) => {
         L.DomEvent.stopPropagation(e);
       });
@@ -519,6 +519,26 @@ export function MapCanvas(props: Props) {
       marker.on("dblclick", (e: L.LeafletMouseEvent) => {
         L.DomEvent.stopPropagation(e);
       });
+      marker.addTo(layer);
+      const el = marker.getElement();
+      if (el) L.DomEvent.disableClickPropagation(el);
+    };
+
+    pts.forEach((pt, i) => {
+      const marker = L.marker([pt.lat, pt.lng], {
+        draggable: true,
+        autoPan: true,
+        autoPanPadding: [48, 48],
+        keyboard: false,
+        pane: "vertices",
+        zIndexOffset: 1400 + i,
+        icon: L.divIcon({
+          className: "ls-vertex-wrap",
+          html: `<span class="ls-vertex-hit"><span class="ls-vertex"></span></span>`,
+          iconSize: [36, 36],
+          iconAnchor: [18, 18],
+        }),
+      });
       marker.on("dragstart", () => {
         draggingVertexRef.current = true;
         map.dragging.disable();
@@ -526,11 +546,18 @@ export function MapCanvas(props: Props) {
       });
       marker.on("drag", () => {
         const ll = marker.getLatLng();
-        const next = (workingPolyRef.current ?? t.polygon).map((q, j) =>
+        const next = (workingPolyRef.current ?? pts).map((q, j) =>
           j === i ? { lat: ll.lat, lng: ll.lng } : q,
         );
         workingPolyRef.current = next;
         poly?.setLatLngs(next.map((q) => L.latLng(q.lat, q.lng)));
+        const n = next.length;
+        const prev = next[(i - 1 + n) % n];
+        const nxt = next[(i + 1) % n];
+        const a = midPoint(prev, next[i]);
+        const b = midPoint(next[i], nxt);
+        midMarkersRef.current[(i - 1 + n) % n]?.setLatLng([a.lat, a.lng]);
+        midMarkersRef.current[i]?.setLatLng([b.lat, b.lng]);
       });
       marker.on("dragend", () => {
         draggingVertexRef.current = false;
@@ -540,10 +567,82 @@ export function MapCanvas(props: Props) {
           propsRef.current.onUpdatePolygon(t.id, next);
         }
       });
-      marker.addTo(layer);
-      const el = marker.getElement();
-      if (el) L.DomEvent.disableClickPropagation(el);
+      marker.on("dblclick", (e: L.LeafletMouseEvent) => {
+        L.DomEvent.stop(e);
+        const cur = workingPolyRef.current ?? pts;
+        if (cur.length <= 3) return;
+        const next = cur.filter((_, j) => j !== i);
+        workingPolyRef.current = next;
+        propsRef.current.onUpdatePolygon(t.id, next);
+      });
+      bindHandle(marker);
       vertexMarkersRef.current.push(marker);
+    });
+
+    pts.forEach((pt, i) => {
+      const mid = midPoint(pt, pts[(i + 1) % pts.length]);
+      const marker = L.marker([mid.lat, mid.lng], {
+        draggable: true,
+        autoPan: true,
+        autoPanPadding: [48, 48],
+        keyboard: false,
+        pane: "vertices",
+        zIndexOffset: 1300 + i,
+        icon: L.divIcon({
+          className: "ls-mid-wrap",
+          html: `<span class="ls-vertex-hit"><span class="ls-mid"></span></span>`,
+          iconSize: [32, 32],
+          iconAnchor: [16, 16],
+        }),
+      });
+      let insertAt = i + 1;
+      let inserted = false;
+      const ensureInsert = (ll: L.LatLng) => {
+        if (inserted) return;
+        inserted = true;
+        const cur = workingPolyRef.current ?? pts;
+        insertAt = i + 1;
+        const next = cur.slice();
+        next.splice(insertAt, 0, { lat: ll.lat, lng: ll.lng });
+        workingPolyRef.current = next;
+        poly?.setLatLngs(next.map((q) => L.latLng(q.lat, q.lng)));
+      };
+      marker.on("dragstart", () => {
+        draggingVertexRef.current = true;
+        map.dragging.disable();
+        poly?.unbindTooltip();
+        ensureInsert(marker.getLatLng());
+      });
+      marker.on("drag", () => {
+        const ll = marker.getLatLng();
+        ensureInsert(ll);
+        const next = (workingPolyRef.current ?? []).map((q, j) =>
+          j === insertAt ? { lat: ll.lat, lng: ll.lng } : q,
+        );
+        workingPolyRef.current = next;
+        poly?.setLatLngs(next.map((q) => L.latLng(q.lat, q.lng)));
+      });
+      marker.on("dragend", () => {
+        draggingVertexRef.current = false;
+        map.dragging.enable();
+        const ll = marker.getLatLng();
+        ensureInsert(ll);
+        const next = workingPolyRef.current;
+        if (next && next.length >= 3) {
+          propsRef.current.onUpdatePolygon(t.id, next);
+        }
+      });
+      marker.on("click", (e: L.LeafletMouseEvent) => {
+        L.DomEvent.stop(e);
+        if (inserted) return;
+        ensureInsert(marker.getLatLng());
+        const next = workingPolyRef.current;
+        if (next && next.length >= 3) {
+          propsRef.current.onUpdatePolygon(t.id, next);
+        }
+      });
+      bindHandle(marker);
+      midMarkersRef.current.push(marker);
     });
   }
 

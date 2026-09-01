@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SelectField } from "@/components/ui/select-field";
 import { ColorSwatches, ImageField } from "@/components/entity-dialog";
+import { ExpandableImage } from "@/components/image-lightbox";
 import {
   GANG_STATUSES,
   GANG_STATUS_LABEL,
@@ -94,10 +95,11 @@ export function InspectorPanel({
           ) : null}
         </div>
         {g.logo ? (
-          <img
+          <ExpandableImage
             src={g.logo}
-            alt=""
-            className="h-24 w-full rounded-md object-cover shadow-[var(--shadow-border)]"
+            alt={`${g.name} logo`}
+            className="h-36 w-full rounded-md bg-surface-2 shadow-[var(--shadow-border)]"
+            fit="contain"
           />
         ) : null}
         {g.description ? (
@@ -170,10 +172,10 @@ export function InspectorPanel({
           ) : (
             <ul className="space-y-1">
               {marks.map((p) => (
-                <li key={p.id}>
+                <li key={p.id} className="flex items-center gap-1">
                   <button
                     type="button"
-                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-fg hover:bg-surface-2"
+                    className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-fg hover:bg-surface-2"
                     onClick={() => onSelectPin(p.id)}
                   >
                     <span
@@ -185,11 +187,19 @@ export function InspectorPanel({
                           "#8b8e96",
                       }}
                     />
-                    {p.name}
-                    <span className="ml-2 text-xs text-subtle">
+                    <span className="truncate">{p.name}</span>
+                    <span className="ml-auto shrink-0 text-xs text-subtle">
                       {PIN_KIND_LABEL[p.kind]}
                     </span>
                   </button>
+                  {p.image ? (
+                    <ExpandableImage
+                      src={p.image}
+                      alt={p.name}
+                      className="size-9 shrink-0 rounded-md shadow-[var(--shadow-border)]"
+                      showHint={false}
+                    />
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -214,7 +224,8 @@ export function InspectorPanel({
         onDelete={onDelete}
       >
         <p className="text-xs text-subtle">
-          Drag the corner dots on the map to reshape this territory.
+          Drag solid corner dots to reshape. Drag a hollow edge dot to add a
+          point. Double-click a corner to remove it.
         </p>
         {owner ? (
           <div className="rounded-lg bg-surface-2 p-3">
@@ -382,6 +393,7 @@ export function InspectorPanel({
         label="Photo"
         value={pin.image}
         onChange={(image) => onSavePin({ ...pin, image })}
+        layout="hero"
       />
     </PanelShell>
   );
