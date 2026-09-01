@@ -2,8 +2,9 @@ import { o as __toESM } from "../_runtime.mjs";
 import { u as require_react } from "../_libs/@floating-ui/react-dom+[...].mjs";
 import { n as require_jsx_runtime } from "../_libs/radix-ui__react-context+react.mjs";
 import { n as TSS_SERVER_FUNCTION, r as getServerFnById, t as createServerFn } from "./ssr.mjs";
+import { t as SEED_GANGS } from "./seed-Cix6AtGD.mjs";
 import { a as object, i as number, n as array, o as string, t as _enum } from "../_libs/zod.mjs";
-import { _ as CircleHelp, a as Trash2, c as Plus, d as MapPinned, f as Hand, g as Download, h as EyeOff, l as Pentagon, m as Eye, n as Users, o as Square, p as Funnel, r as Upload, s as Search, t as X, u as Pencil, v as CircleDot } from "../_libs/lucide-react.mjs";
+import { _ as Download, a as Trash2, c as Plus, d as MapPinned, f as Hand, g as Expand, h as EyeOff, l as Pentagon, m as Eye, n as Users, o as Square, p as Funnel, r as Upload, s as Search, t as X, u as Pencil, v as CircleHelp, y as CircleDot } from "../_libs/lucide-react.mjs";
 import { n as toast, t as Toaster } from "../_libs/sonner.mjs";
 import { n as clsx, t as cva } from "../_libs/class-variance-authority+clsx.mjs";
 import { t as twMerge } from "../_libs/tailwind-merge.mjs";
@@ -11,7 +12,7 @@ import { a as DialogOverlay$1, g as Slot, i as DialogDescription$1, n as DialogC
 import { i as Viewport, n as Scrollbar, r as Thumb, t as Root } from "../_libs/radix-ui__react-scroll-area.mjs";
 import { t as Root$1 } from "../_libs/radix-ui__react-label.mjs";
 import { a as Trigger, i as Root3, n as Portal, r as Provider, t as Content2 } from "../_libs/@radix-ui/react-tooltip+[...].mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/routes-Cm1TOcFg.js
+//#region node_modules/.nitro/vite/services/ssr/assets/routes-DsGOBrD7.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_runtime = require_jsx_runtime();
 function cn(...inputs) {
@@ -24,26 +25,36 @@ function todayIsoDate() {
 	return (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
 }
 /** Compress an image file to a JPEG data URL for the public board. */
-function readImageFile(file, maxEdge = 480) {
+function readImageFile(file, maxEdge = 960) {
 	return new Promise((resolve, reject) => {
 		const url = URL.createObjectURL(file);
 		const img = new Image();
 		img.onload = () => {
 			const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
-			const w = Math.max(1, Math.round(img.width * scale));
-			const h = Math.max(1, Math.round(img.height * scale));
+			let w = Math.max(1, Math.round(img.width * scale));
+			let h = Math.max(1, Math.round(img.height * scale));
 			const canvas = document.createElement("canvas");
-			canvas.width = w;
-			canvas.height = h;
 			const ctx = canvas.getContext("2d");
 			if (!ctx) {
 				URL.revokeObjectURL(url);
 				reject(/* @__PURE__ */ new Error("No canvas"));
 				return;
 			}
-			ctx.drawImage(img, 0, 0, w, h);
 			URL.revokeObjectURL(url);
-			resolve(canvas.toDataURL("image/jpeg", .72));
+			const encode = (qw, qh, quality) => {
+				canvas.width = qw;
+				canvas.height = qh;
+				ctx.drawImage(img, 0, 0, qw, qh);
+				return canvas.toDataURL("image/jpeg", quality);
+			};
+			let data = encode(w, h, .78);
+			if (data.length > 38e4) data = encode(w, h, .62);
+			if (data.length > 38e4) {
+				w = Math.round(w * .7);
+				h = Math.round(h * .7);
+				data = encode(Math.max(1, w), Math.max(1, h), .6);
+			}
+			resolve(data);
 		};
 		img.onerror = () => {
 			URL.revokeObjectURL(url);
@@ -162,18 +173,18 @@ var GANG_STATUS_LABEL = {
 	unknown: "Unknown"
 };
 var GANG_COLOR_PRESETS = [
-	"#b33a3a",
-	"#2f7a3a",
-	"#c4a035",
-	"#2a7f98",
-	"#5c3d8a",
-	"#2f4f8a",
-	"#8a5a2f",
-	"#1f1f1f",
-	"#d8d4c8",
-	"#6a3d5c",
-	"#3d6a5c",
-	"#7a4a1f"
+	"#2ecc71",
+	"#f4d03f",
+	"#e67e22",
+	"#1d4ed8",
+	"#111111",
+	"#f5a3c7",
+	"#166534",
+	"#dc2626",
+	"#9a8b1a",
+	"#22d3ee",
+	"#c084fc",
+	"#9b59b6"
 ];
 function GangPanel({ gangs, territories, pins, query, onQuery, selectedGangId, hiddenGangIds, showUnassigned, onSelectGang, onToggleHidden, onToggleUnassigned, onNewGang }) {
 	const q = query.trim().toLowerCase();
@@ -349,6 +360,64 @@ function SelectField({ className, children, ...props }) {
 		children
 	});
 }
+function ImageLightbox({ src, alt = "Photo", open, onOpenChange }) {
+	if (!src) return null;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Dialog$1, {
+		open,
+		onOpenChange,
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(DialogPortal$1, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(DialogOverlay$1, { className: "fixed inset-0 z-[3000] bg-bg/88" }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(DialogContent$1, {
+			className: "fixed inset-0 z-[3010] flex cursor-zoom-out items-center justify-center p-4 outline-none sm:p-10",
+			onClick: () => onOpenChange(false),
+			onPointerDownOutside: () => onOpenChange(false),
+			children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(DialogTitle$1, {
+					className: "sr-only",
+					children: alt
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(DialogDescription$1, {
+					className: "sr-only",
+					children: "Enlarged photo. Press Escape or click outside to close."
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+					src,
+					alt,
+					className: "max-h-[88vh] w-[min(92vw,64rem)] cursor-default rounded-lg object-contain shadow-[var(--shadow-border)]",
+					onClick: (e) => e.stopPropagation()
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(DialogClose, {
+					className: "absolute top-4 right-4 grid size-10 place-items-center rounded-full bg-fg text-bg hover:bg-accent",
+					"aria-label": "Close",
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(X, { className: "size-5" })
+				})
+			]
+		})] })
+	});
+}
+/** Thumbnail / banner that opens a full-size lightbox on click. */
+function ExpandableImage({ src, alt = "", className, showHint = true, fit = "cover" }) {
+	const [open, setOpen] = (0, import_react.useState)(false);
+	if (!src) return null;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+		type: "button",
+		onClick: () => setOpen(true),
+		title: "Click to enlarge",
+		"aria-label": alt ? `View larger: ${alt}` : "View larger photo",
+		className: cn("group relative block cursor-zoom-in overflow-hidden", className),
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+			src,
+			alt,
+			className: cn("size-full", fit === "contain" ? "object-contain" : "object-cover")
+		}), showHint ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+			className: "pointer-events-none absolute right-1.5 bottom-1.5 grid size-6 place-items-center rounded-md bg-bg/70 text-fg opacity-80 transition-opacity duration-[var(--motion-quick)] group-hover:opacity-100",
+			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Expand, { className: "size-3.5" })
+		}) : null]
+	}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ImageLightbox, {
+		src,
+		alt,
+		open,
+		onOpenChange: setOpen
+	})] });
+}
 function ColorSwatches({ value, onChange }) {
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "flex flex-wrap items-center gap-1.5",
@@ -370,36 +439,53 @@ function ColorSwatches({ value, onChange }) {
 		})]
 	});
 }
-function ImageField({ label, value, onChange }) {
+function ImageField({ label, value, onChange, layout = "row" }) {
+	const fileInput = /* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+		type: "file",
+		accept: "image/*",
+		className: "text-xs text-muted file:mr-2 file:rounded-md file:border-0 file:bg-surface-2 file:px-2 file:py-1 file:text-xs file:text-fg",
+		onChange: (e) => {
+			const file = e.target.files?.[0];
+			if (!file) return;
+			readImageFile(file).then(onChange).catch(() => {});
+			e.target.value = "";
+		}
+	});
+	const remove = value ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+		type: "button",
+		className: "text-left text-xs text-muted hover:text-fg",
+		onClick: () => onChange(""),
+		children: "Remove"
+	}) : null;
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "space-y-1.5",
-		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Label, { children: label }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: "flex items-center gap-3",
-			children: [value ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Label, { children: label }), layout === "hero" ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: "space-y-2",
+			children: [value ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExpandableImage, {
 				src: value,
-				alt: "",
-				className: "size-12 rounded-md object-cover shadow-[var(--shadow-border)]"
+				alt: label,
+				className: "h-40 w-full rounded-md bg-surface-2 shadow-[var(--shadow-border)]",
+				fit: "contain"
+			}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+				className: "grid h-20 w-full place-items-center rounded-md bg-surface-2 text-xs text-subtle",
+				children: "no photo"
+			}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "flex flex-col gap-1",
+				children: [fileInput, remove]
+			})]
+		}) : /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: "flex items-center gap-3",
+			children: [value ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExpandableImage, {
+				src: value,
+				alt: label,
+				className: "size-12 shrink-0 rounded-md shadow-[var(--shadow-border)]",
+				showHint: false
 			}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 				className: "grid size-12 place-items-center rounded-md bg-surface-2 text-xs text-subtle",
 				children: "none"
 			}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 				className: "flex flex-col gap-1",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-					type: "file",
-					accept: "image/*",
-					className: "text-xs text-muted file:mr-2 file:rounded-md file:border-0 file:bg-surface-2 file:px-2 file:py-1 file:text-xs file:text-fg",
-					onChange: (e) => {
-						const file = e.target.files?.[0];
-						if (!file) return;
-						readImageFile(file).then(onChange).catch(() => {});
-						e.target.value = "";
-					}
-				}), value ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-					type: "button",
-					className: "text-left text-xs text-muted hover:text-fg",
-					onClick: () => onChange(""),
-					children: "Remove"
-				}) : null]
+				children: [fileInput, remove]
 			})]
 		})]
 	});
@@ -801,8 +887,12 @@ function HelpDialog({ open, onOpenChange }) {
 					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 						className: "font-medium text-fg",
 						children: "Reshape"
-					}), " — select a territory, then drag the corner dots. Selected tags can be dragged too."] }),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: "The board is public and shared — no sign-in. Anyone can add turf and tags. Export JSON for a backup." })
+					}), " — select a territory, then drag the solid corner dots. Drag or click a hollow edge dot to add a point. Double-click a corner to remove it. Drag any tag to move it."] }),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: "font-medium text-fg",
+						children: "Backup"
+					}), " — every edit is saved in this browser. If the public board resets, you can restore from here. Also hit Export (arrow down) and keep the JSON file."] }),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: "The board is public and shared — no sign-in. Anyone can add turf and tags." })
 				]
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
@@ -811,6 +901,46 @@ function HelpDialog({ open, onOpenChange }) {
 					onClick: () => onOpenChange(false),
 					children: "Got it"
 				})
+			})
+		] })
+	});
+}
+function RestoreBackupDialog({ open, gangs, territories, pins, savedAt, onRestore, onSkip }) {
+	const when = savedAt ? new Date(savedAt).toLocaleString() : "this browser";
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Dialog, {
+		open,
+		onOpenChange: (v) => {
+			if (!v) onSkip();
+		},
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(DialogContent, { children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(DialogHeader, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(DialogTitle, { children: "Restore local backup?" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DialogDescription, { children: "The public board looks empty, but this browser still has a copy." })] }),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+				className: "text-sm text-fg",
+				children: [
+					gangs,
+					" gangs · ",
+					territories,
+					" turf · ",
+					pins,
+					" tags"
+				]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", {
+				className: "text-xs text-muted",
+				children: ["Saved ", when]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: "flex justify-end gap-2 pt-2",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, {
+					type: "button",
+					variant: "ghost",
+					onClick: onSkip,
+					children: "Keep empty board"
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, {
+					type: "button",
+					onClick: onRestore,
+					children: "Restore"
+				})]
 			})
 		] })
 	});
@@ -919,10 +1049,11 @@ function InspectorPanel({ selection, gangs, territories, pins, onClose, onFocus,
 						children: ["Lead ", g.leader]
 					}) : null]
 				}),
-				g.logo ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+				g.logo ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExpandableImage, {
 					src: g.logo,
-					alt: "",
-					className: "h-24 w-full rounded-md object-cover shadow-[var(--shadow-border)]"
+					alt: `${g.name} logo`,
+					className: "h-36 w-full rounded-md bg-surface-2 shadow-[var(--shadow-border)]",
+					fit: "contain"
 				}) : null,
 				g.description ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 					className: "text-sm leading-relaxed text-muted",
@@ -986,15 +1117,33 @@ function InspectorPanel({ selection, gangs, territories, pins, onClose, onFocus,
 					children: "No tags yet."
 				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", {
 					className: "space-y-1",
-					children: marks.map((p) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-						type: "button",
-						className: "w-full rounded-md px-2 py-1.5 text-left text-sm text-fg hover:bg-surface-2",
-						onClick: () => onSelectPin(p.id),
-						children: [p.name, /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-							className: "ml-2 text-xs text-subtle",
-							children: PIN_KIND_LABEL[p.kind]
-						})]
-					}) }, p.id))
+					children: marks.map((p) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", {
+						className: "flex items-center gap-1",
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+							type: "button",
+							className: "flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-fg hover:bg-surface-2",
+							onClick: () => onSelectPin(p.id),
+							children: [
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "size-2.5 shrink-0 rounded-full",
+									style: { background: p.color ?? gangs.find((g) => g.id === p.gangId)?.color ?? "#8b8e96" }
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "truncate",
+									children: p.name
+								}),
+								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+									className: "ml-auto shrink-0 text-xs text-subtle",
+									children: PIN_KIND_LABEL[p.kind]
+								})
+							]
+						}), p.image ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExpandableImage, {
+							src: p.image,
+							alt: p.name,
+							className: "size-9 shrink-0 rounded-md shadow-[var(--shadow-border)]",
+							showHint: false
+						}) : null]
+					}, p.id))
 				})] })
 			]
 		});
@@ -1014,7 +1163,7 @@ function InspectorPanel({ selection, gangs, territories, pins, onClose, onFocus,
 			children: [
 				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 					className: "text-xs text-subtle",
-					children: "Drag the corner dots on the map to reshape this territory."
+					children: "Drag solid corner dots to reshape. Drag a hollow edge dot to add a point. Double-click a corner to remove it."
 				}),
 				owner ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 					className: "rounded-lg bg-surface-2 p-3",
@@ -1214,7 +1363,8 @@ function InspectorPanel({ selection, gangs, territories, pins, onClose, onFocus,
 				onChange: (image) => onSavePin({
 					...pin,
 					image
-				})
+				}),
+				layout: "hero"
 			})
 		]
 	});
@@ -1380,8 +1530,24 @@ function gangColor(gangs, gangId, fallback) {
 	if (!gangId) return "#8b8e96";
 	return gangs.find((g) => g.id === gangId)?.color ?? "#8b8e96";
 }
-function pinHtml(color) {
-	return `<span class="ls-pin-dot" style="background:${color}"></span>`;
+function pinStyle(color, selected) {
+	return {
+		radius: selected ? 11 : 9,
+		color: selected ? "#f4f1ea" : "#111214",
+		weight: selected ? 3 : 2.5,
+		fillColor: color,
+		fillOpacity: 1,
+		opacity: 1,
+		bubblingMouseEvents: false,
+		pane: "tags",
+		className: selected ? "ls-tag-dot is-selected" : "ls-tag-dot"
+	};
+}
+function midPoint(a, b) {
+	return {
+		lat: (a.lat + b.lat) / 2,
+		lng: (a.lng + b.lng) / 2
+	};
 }
 function closeEnough(L, a, b, map, px = 14) {
 	return map.latLngToLayerPoint(a).distanceTo(map.latLngToLayerPoint(b)) <= px;
@@ -1451,6 +1617,7 @@ function MapCanvas(props) {
 	const drawLayerRef = (0, import_react.useRef)(null);
 	const vertexLayerRef = (0, import_react.useRef)(null);
 	const vertexMarkersRef = (0, import_react.useRef)([]);
+	const midMarkersRef = (0, import_react.useRef)([]);
 	const vertexTerritoryIdRef = (0, import_react.useRef)(null);
 	const turfById = (0, import_react.useRef)(/* @__PURE__ */ new Map());
 	const pinById = (0, import_react.useRef)(/* @__PURE__ */ new Map());
@@ -1461,10 +1628,26 @@ function MapCanvas(props) {
 	const draftRef = (0, import_react.useRef)([]);
 	const rectStartRef = (0, import_react.useRef)(null);
 	const draggingVertexRef = (0, import_react.useRef)(false);
+	const draggingPinRef = (0, import_react.useRef)(null);
+	const pinMovedRef = (0, import_react.useRef)(false);
+	const pinMetaRef = (0, import_react.useRef)(/* @__PURE__ */ new Map());
 	const workingPolyRef = (0, import_react.useRef)(null);
 	(0, import_react.useEffect)(() => {
 		let cancelled = false;
 		let map = null;
+		function finishPinDrag() {
+			const id = draggingPinRef.current;
+			if (!id) return;
+			const marker = pinById.current.get(id);
+			const moved = pinMovedRef.current;
+			draggingPinRef.current = null;
+			pinMovedRef.current = false;
+			mapRef.current?.dragging.enable();
+			if (marker && moved) {
+				const ll = marker.getLatLng();
+				propsRef.current.onMovePin(id, ll.lat, ll.lng);
+			}
+		}
 		async function boot() {
 			const L = await import("../_libs/leaflet.mjs").then((n) => /* @__PURE__ */ __toESM(n.t()));
 			await Promise.resolve({});
@@ -1500,6 +1683,9 @@ function MapCanvas(props) {
 			map.createPane("vertices");
 			const vertexPane = map.getPane("vertices");
 			if (vertexPane) vertexPane.style.zIndex = "650";
+			map.createPane("tags");
+			const tagsPane = map.getPane("tags");
+			if (tagsPane) tagsPane.style.zIndex = "620";
 			const initial = TILE_STYLES[propsRef.current.tileStyle];
 			const tiles = makeTileLayer(L, initial.url).addTo(map);
 			tileRef.current = tiles;
@@ -1511,9 +1697,16 @@ function MapCanvas(props) {
 			vertexLayerRef.current = L.layerGroup().addTo(map);
 			map.on("mousemove", (e) => {
 				propsRef.current.onCursor(e.latlng.lat, e.latlng.lng);
+				const dragId = draggingPinRef.current;
+				if (dragId) {
+					pinMovedRef.current = true;
+					pinById.current.get(dragId)?.setLatLng(e.latlng);
+				}
 				if (toolRef.current === "polygon" && draftRef.current.length > 0) paintDraft(L, [...draftRef.current, e.latlng], false);
 				if (toolRef.current === "rect" && rectStartRef.current) paintRect(L, rectStartRef.current, e.latlng);
 			});
+			map.on("mouseup", finishPinDrag);
+			window.addEventListener("mouseup", finishPinDrag);
 			map.on("mousedown", (e) => {
 				if (toolRef.current !== "rect") return;
 				if (e.originalEvent.button !== 0) return;
@@ -1664,6 +1857,7 @@ function MapCanvas(props) {
 		boot();
 		return () => {
 			cancelled = true;
+			window.removeEventListener("mouseup", finishPinDrag);
 			const m = mapRef.current;
 			if (m) {
 				const key = m.__onKey;
@@ -1674,6 +1868,12 @@ function MapCanvas(props) {
 			mapRef.current = null;
 		};
 	}, []);
+	function clearVertexHandles() {
+		vertexLayerRef.current?.clearLayers();
+		vertexMarkersRef.current = [];
+		midMarkersRef.current = [];
+		vertexTerritoryIdRef.current = null;
+	}
 	function syncVertices() {
 		const L = Lref.current;
 		const map = mapRef.current;
@@ -1683,46 +1883,30 @@ function MapCanvas(props) {
 		const p = propsRef.current;
 		const sel = p.selection;
 		if (p.tool !== "pan" || sel?.type !== "territory") {
-			if (vertexMarkersRef.current.length) {
-				layer.clearLayers();
-				vertexMarkersRef.current = [];
-				vertexTerritoryIdRef.current = null;
-			}
+			if (vertexMarkersRef.current.length || midMarkersRef.current.length) clearVertexHandles();
 			return;
 		}
 		const t = p.territories.find((x) => x.id === sel.id);
 		if (!t) {
-			layer.clearLayers();
-			vertexMarkersRef.current = [];
-			vertexTerritoryIdRef.current = null;
+			clearVertexHandles();
 			return;
 		}
 		const poly = turfById.current.get(t.id);
-		workingPolyRef.current = t.polygon.map((pt) => ({ ...pt }));
-		if (vertexTerritoryIdRef.current === t.id && vertexMarkersRef.current.length === t.polygon.length) {
-			t.polygon.forEach((pt, i) => {
+		const pts = t.polygon.map((pt) => ({ ...pt }));
+		workingPolyRef.current = pts;
+		if (vertexTerritoryIdRef.current === t.id && vertexMarkersRef.current.length === pts.length && midMarkersRef.current.length === pts.length) {
+			pts.forEach((pt, i) => {
 				vertexMarkersRef.current[i]?.setLatLng([pt.lat, pt.lng]);
+				const mid = midPoint(pt, pts[(i + 1) % pts.length]);
+				midMarkersRef.current[i]?.setLatLng([mid.lat, mid.lng]);
 			});
 			return;
 		}
 		layer.clearLayers();
 		vertexMarkersRef.current = [];
+		midMarkersRef.current = [];
 		vertexTerritoryIdRef.current = t.id;
-		t.polygon.forEach((pt, i) => {
-			const marker = L.marker([pt.lat, pt.lng], {
-				draggable: true,
-				autoPan: true,
-				autoPanPadding: [48, 48],
-				keyboard: false,
-				pane: "vertices",
-				zIndexOffset: 1200 + i,
-				icon: L.divIcon({
-					className: "ls-vertex-wrap",
-					html: `<span class="ls-vertex-hit"><span class="ls-vertex"></span></span>`,
-					iconSize: [36, 36],
-					iconAnchor: [18, 18]
-				})
-			});
+		const bindHandle = (marker) => {
 			marker.on("mousedown", (e) => {
 				L.DomEvent.stopPropagation(e);
 			});
@@ -1732,6 +1916,25 @@ function MapCanvas(props) {
 			marker.on("dblclick", (e) => {
 				L.DomEvent.stopPropagation(e);
 			});
+			marker.addTo(layer);
+			const el = marker.getElement();
+			if (el) L.DomEvent.disableClickPropagation(el);
+		};
+		pts.forEach((pt, i) => {
+			const marker = L.marker([pt.lat, pt.lng], {
+				draggable: true,
+				autoPan: true,
+				autoPanPadding: [48, 48],
+				keyboard: false,
+				pane: "vertices",
+				zIndexOffset: 1400 + i,
+				icon: L.divIcon({
+					className: "ls-vertex-wrap",
+					html: `<span class="ls-vertex-hit"><span class="ls-vertex"></span></span>`,
+					iconSize: [36, 36],
+					iconAnchor: [18, 18]
+				})
+			});
 			marker.on("dragstart", () => {
 				draggingVertexRef.current = true;
 				map.dragging.disable();
@@ -1739,7 +1942,78 @@ function MapCanvas(props) {
 			});
 			marker.on("drag", () => {
 				const ll = marker.getLatLng();
-				const next = (workingPolyRef.current ?? t.polygon).map((q, j) => j === i ? {
+				const next = (workingPolyRef.current ?? pts).map((q, j) => j === i ? {
+					lat: ll.lat,
+					lng: ll.lng
+				} : q);
+				workingPolyRef.current = next;
+				poly?.setLatLngs(next.map((q) => L.latLng(q.lat, q.lng)));
+				const n = next.length;
+				const prev = next[(i - 1 + n) % n];
+				const nxt = next[(i + 1) % n];
+				const a = midPoint(prev, next[i]);
+				const b = midPoint(next[i], nxt);
+				midMarkersRef.current[(i - 1 + n) % n]?.setLatLng([a.lat, a.lng]);
+				midMarkersRef.current[i]?.setLatLng([b.lat, b.lng]);
+			});
+			marker.on("dragend", () => {
+				draggingVertexRef.current = false;
+				map.dragging.enable();
+				const next = workingPolyRef.current;
+				if (next && next.length >= 3) propsRef.current.onUpdatePolygon(t.id, next);
+			});
+			marker.on("dblclick", (e) => {
+				L.DomEvent.stop(e);
+				const cur = workingPolyRef.current ?? pts;
+				if (cur.length <= 3) return;
+				const next = cur.filter((_, j) => j !== i);
+				workingPolyRef.current = next;
+				propsRef.current.onUpdatePolygon(t.id, next);
+			});
+			bindHandle(marker);
+			vertexMarkersRef.current.push(marker);
+		});
+		pts.forEach((pt, i) => {
+			const mid = midPoint(pt, pts[(i + 1) % pts.length]);
+			const marker = L.marker([mid.lat, mid.lng], {
+				draggable: true,
+				autoPan: true,
+				autoPanPadding: [48, 48],
+				keyboard: false,
+				pane: "vertices",
+				zIndexOffset: 1300 + i,
+				icon: L.divIcon({
+					className: "ls-mid-wrap",
+					html: `<span class="ls-vertex-hit"><span class="ls-mid"></span></span>`,
+					iconSize: [32, 32],
+					iconAnchor: [16, 16]
+				})
+			});
+			let insertAt = i + 1;
+			let inserted = false;
+			const ensureInsert = (ll) => {
+				if (inserted) return;
+				inserted = true;
+				const cur = workingPolyRef.current ?? pts;
+				insertAt = i + 1;
+				const next = cur.slice();
+				next.splice(insertAt, 0, {
+					lat: ll.lat,
+					lng: ll.lng
+				});
+				workingPolyRef.current = next;
+				poly?.setLatLngs(next.map((q) => L.latLng(q.lat, q.lng)));
+			};
+			marker.on("dragstart", () => {
+				draggingVertexRef.current = true;
+				map.dragging.disable();
+				poly?.unbindTooltip();
+				ensureInsert(marker.getLatLng());
+			});
+			marker.on("drag", () => {
+				const ll = marker.getLatLng();
+				ensureInsert(ll);
+				const next = (workingPolyRef.current ?? []).map((q, j) => j === insertAt ? {
 					lat: ll.lat,
 					lng: ll.lng
 				} : q);
@@ -1749,13 +2023,20 @@ function MapCanvas(props) {
 			marker.on("dragend", () => {
 				draggingVertexRef.current = false;
 				map.dragging.enable();
+				const ll = marker.getLatLng();
+				ensureInsert(ll);
 				const next = workingPolyRef.current;
 				if (next && next.length >= 3) propsRef.current.onUpdatePolygon(t.id, next);
 			});
-			marker.addTo(layer);
-			const el = marker.getElement();
-			if (el) L.DomEvent.disableClickPropagation(el);
-			vertexMarkersRef.current.push(marker);
+			marker.on("click", (e) => {
+				L.DomEvent.stop(e);
+				if (inserted) return;
+				ensureInsert(marker.getLatLng());
+				const next = workingPolyRef.current;
+				if (next && next.length >= 3) propsRef.current.onUpdatePolygon(t.id, next);
+			});
+			bindHandle(marker);
+			midMarkersRef.current.push(marker);
 		});
 	}
 	function syncAll() {
@@ -1830,36 +2111,36 @@ function MapCanvas(props) {
 		for (const [id, layer] of pinById.current) if (!nextPins.has(id)) {
 			pinLayer.removeLayer(layer);
 			pinById.current.delete(id);
+			pinMetaRef.current.delete(id);
 		}
 		for (const pin of visiblePins) {
 			const color = gangColor(p.gangs, pin.gangId, pin.color);
 			const selected = p.selection?.type === "pin" && p.selection.id === pin.id;
-			const icon = L.divIcon({
-				className: `ls-pin${selected ? " is-selected" : ""}`,
-				html: pinHtml(color),
-				iconSize: [28, 28],
-				iconAnchor: [14, 14]
-			});
+			const style = pinStyle(color, selected);
 			let marker = pinById.current.get(pin.id);
 			const tip = `${pin.name} · ${gangName(p.gangs, pin.gangId)}`;
+			const draggingThis = draggingPinRef.current === pin.id;
 			if (!marker) {
-				marker = L.marker([pin.lat, pin.lng], {
-					icon,
-					draggable: false,
-					riseOnHover: true,
-					zIndexOffset: selected ? 800 : 200
-				});
-				marker.on("click", (e) => {
-					L.DomEvent.stopPropagation(e);
+				marker = L.circleMarker([pin.lat, pin.lng], style);
+				marker.on("mousedown", (e) => {
+					L.DomEvent.stop(e);
 					if (toolRef.current !== "pan") return;
+					draggingPinRef.current = pin.id;
+					pinMovedRef.current = false;
+					map.dragging.disable();
+					marker?.closeTooltip();
 					propsRef.current.onSelect({
 						type: "pin",
 						id: pin.id
 					});
 				});
-				marker.on("dragend", () => {
-					const ll = marker?.getLatLng();
-					if (ll) propsRef.current.onMovePin(pin.id, ll.lat, ll.lng);
+				marker.on("click", (e) => {
+					L.DomEvent.stop(e);
+					if (toolRef.current !== "pan") return;
+					propsRef.current.onSelect({
+						type: "pin",
+						id: pin.id
+					});
 				});
 				marker.bindTooltip(tip, {
 					opacity: .95,
@@ -1867,14 +2148,24 @@ function MapCanvas(props) {
 				});
 				marker.addTo(pinLayer);
 				pinById.current.set(pin.id, marker);
-			} else {
-				marker.setLatLng([pin.lat, pin.lng]);
-				marker.setIcon(icon);
-				marker.setZIndexOffset(selected ? 800 : 200);
+				pinMetaRef.current.set(pin.id, {
+					color,
+					selected
+				});
+			} else if (!draggingThis) {
+				const here = marker.getLatLng();
+				if (Math.abs(here.lat - pin.lat) > .01 || Math.abs(here.lng - pin.lng) > .01) marker.setLatLng([pin.lat, pin.lng]);
+				const prev = pinMetaRef.current.get(pin.id);
+				if (!prev || prev.color !== color || prev.selected !== selected) {
+					marker.setStyle(style);
+					pinMetaRef.current.set(pin.id, {
+						color,
+						selected
+					});
+				}
 				marker.setTooltipContent(tip);
 			}
-			if (selected) marker.dragging?.enable();
-			else marker.dragging?.disable();
+			if (selected) marker.bringToFront();
 		}
 		syncVertices();
 	}
@@ -1947,6 +2238,98 @@ function TooltipContent({ className, sideOffset = 6, ...props }) {
 		className: cn("z-50 rounded-md bg-fg px-2 py-1 text-xs text-bg shadow-[var(--shadow-border)]", className),
 		...props
 	}) });
+}
+var IDB_NAME = "ls-grid";
+var IDB_STORE = "kv";
+var IDB_KEY = "board-backup";
+var META_KEY = "ls-grid-backup-meta";
+var DISMISS_KEY = "ls-grid-restore-dismissed";
+new Set(SEED_GANGS.map((g) => g.id));
+function isBrowser() {
+	return typeof window !== "undefined" && typeof indexedDB !== "undefined";
+}
+function openDb() {
+	return new Promise((resolve, reject) => {
+		const req = indexedDB.open(IDB_NAME, 1);
+		req.onupgradeneeded = () => {
+			const db = req.result;
+			if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+		};
+		req.onsuccess = () => resolve(req.result);
+		req.onerror = () => reject(req.error);
+	});
+}
+async function saveBoardBackup(board) {
+	if (!isBrowser()) return;
+	const payload = {
+		savedAt: (/* @__PURE__ */ new Date()).toISOString(),
+		gangs: board.gangs,
+		territories: board.territories,
+		pins: board.pins
+	};
+	const meta = {
+		savedAt: payload.savedAt,
+		gangs: board.gangs.length,
+		territories: board.territories.length,
+		pins: board.pins.length
+	};
+	try {
+		localStorage.setItem(META_KEY, JSON.stringify(meta));
+	} catch {}
+	try {
+		const db = await openDb();
+		await new Promise((resolve, reject) => {
+			const tx = db.transaction(IDB_STORE, "readwrite");
+			tx.objectStore(IDB_STORE).put(payload, IDB_KEY);
+			tx.oncomplete = () => resolve();
+			tx.onerror = () => reject(tx.error);
+		});
+		db.close();
+	} catch {
+		try {
+			localStorage.setItem(IDB_KEY, JSON.stringify(payload));
+		} catch {}
+	}
+}
+async function loadBoardBackup() {
+	if (!isBrowser()) return null;
+	try {
+		const db = await openDb();
+		const row = await new Promise((resolve, reject) => {
+			const req = db.transaction(IDB_STORE, "readonly").objectStore(IDB_STORE).get(IDB_KEY);
+			req.onsuccess = () => resolve(req.result);
+			req.onerror = () => reject(req.error);
+		});
+		db.close();
+		if (row && Array.isArray(row.gangs)) return row;
+	} catch {}
+	try {
+		const raw = localStorage.getItem(IDB_KEY);
+		if (!raw) return null;
+		const parsed = JSON.parse(raw);
+		if (!Array.isArray(parsed?.gangs)) return null;
+		return parsed;
+	} catch {
+		return null;
+	}
+}
+function backupIsRicher(backup, server) {
+	const extraGangs = backup.gangs.some((g) => !server.gangs.some((s) => s.id === g.id));
+	const extraTurf = backup.territories.some((t) => !server.territories.some((s) => s.id === t.id));
+	const extraPins = backup.pins.some((p) => !server.pins.some((s) => s.id === p.id));
+	if (extraGangs || extraTurf || extraPins) return true;
+	if (backup.gangs.length > server.gangs.length) return true;
+	if (backup.territories.length > server.territories.length) return true;
+	if (backup.pins.length > server.pins.length) return true;
+	return false;
+}
+function restoreWasDismissed() {
+	if (!isBrowser()) return false;
+	return sessionStorage.getItem(DISMISS_KEY) === "1";
+}
+function dismissRestoreOffer() {
+	if (!isBrowser()) return;
+	sessionStorage.setItem(DISMISS_KEY, "1");
 }
 var createSsrRpc = (functionId) => {
 	const url = "/_serverFn/" + functionId;
@@ -2070,11 +2453,29 @@ function pinPayload(p) {
 function useBoard() {
 	const [board, setBoard] = (0, import_react.useState)(null);
 	const [error, setError] = (0, import_react.useState)(null);
+	const [restoreOffer, setRestoreOffer] = (0, import_react.useState)(null);
+	const checkedBackup = (0, import_react.useRef)(false);
+	const commit = (0, import_react.useCallback)((next) => {
+		setBoard(next);
+		saveBoardBackup(next);
+	}, []);
 	const reload = (0, import_react.useCallback)(async () => {
 		try {
 			const next = await listBoard();
-			setBoard(next);
 			setError(null);
+			if (!checkedBackup.current) {
+				checkedBackup.current = true;
+				const bak = await loadBoardBackup();
+				if (bak && backupIsRicher(bak, next) && !restoreWasDismissed()) {
+					setRestoreOffer(bak);
+					setBoard(next);
+					return;
+				}
+				setBoard(next);
+				if (!bak || !backupIsRicher(bak, next)) saveBoardBackup(next);
+				return;
+			}
+			setBoard(next);
 		} catch (err) {
 			const message = err instanceof Error ? err.message : "Could not load the board";
 			setError(message);
@@ -2096,10 +2497,12 @@ function useBoard() {
 			setBoard((b) => {
 				if (!b) return b;
 				const exists = b.gangs.some((x) => x.id === saved.id);
-				return {
+				const next = {
 					...b,
 					gangs: exists ? b.gangs.map((x) => x.id === saved.id ? saved : x) : [...b.gangs, saved]
 				};
+				saveBoardBackup(next);
+				return next;
 			});
 		} catch {
 			toast.error("Could not save gang");
@@ -2112,10 +2515,12 @@ function useBoard() {
 			setBoard((b) => {
 				if (!b) return b;
 				const exists = b.territories.some((x) => x.id === saved.id);
-				return {
+				const next = {
 					...b,
 					territories: exists ? b.territories.map((x) => x.id === saved.id ? saved : x) : [...b.territories, saved]
 				};
+				saveBoardBackup(next);
+				return next;
 			});
 		} catch {
 			toast.error("Could not save territory");
@@ -2128,10 +2533,12 @@ function useBoard() {
 			setBoard((b) => {
 				if (!b) return b;
 				const exists = b.pins.some((x) => x.id === saved.id);
-				return {
+				const next = {
 					...b,
 					pins: exists ? b.pins.map((x) => x.id === saved.id ? saved : x) : [...b.pins, saved]
 				};
+				saveBoardBackup(next);
+				return next;
 			});
 		} catch {
 			toast.error("Could not save tag");
@@ -2143,7 +2550,7 @@ function useBoard() {
 			await deleteGang({ data: { id } });
 			setBoard((b) => {
 				if (!b) return b;
-				return {
+				const next = {
 					gangs: b.gangs.filter((g) => g.id !== id),
 					territories: b.territories.map((t) => t.gangId === id ? {
 						...t,
@@ -2154,6 +2561,8 @@ function useBoard() {
 						gangId: null
 					} : p)
 				};
+				saveBoardBackup(next);
+				return next;
 			});
 		} catch {
 			toast.error("Could not remove gang");
@@ -2163,10 +2572,15 @@ function useBoard() {
 	const removeTerritory = (0, import_react.useCallback)(async (id) => {
 		try {
 			await deleteTerritory({ data: { id } });
-			setBoard((b) => b ? {
-				...b,
-				territories: b.territories.filter((t) => t.id !== id)
-			} : b);
+			setBoard((b) => {
+				if (!b) return b;
+				const next = {
+					...b,
+					territories: b.territories.filter((t) => t.id !== id)
+				};
+				saveBoardBackup(next);
+				return next;
+			});
 		} catch {
 			toast.error("Could not remove territory");
 			await reload();
@@ -2175,10 +2589,15 @@ function useBoard() {
 	const removePin = (0, import_react.useCallback)(async (id) => {
 		try {
 			await deletePin({ data: { id } });
-			setBoard((b) => b ? {
-				...b,
-				pins: b.pins.filter((p) => p.id !== id)
-			} : b);
+			setBoard((b) => {
+				if (!b) return b;
+				const next = {
+					...b,
+					pins: b.pins.filter((p) => p.id !== id)
+				};
+				saveBoardBackup(next);
+				return next;
+			});
 		} catch {
 			toast.error("Could not remove tag");
 			await reload();
@@ -2191,12 +2610,23 @@ function useBoard() {
 				territories: incoming.territories.map(turfPayload),
 				pins: incoming.pins.map(pinPayload)
 			} });
-			setBoard(next);
+			commit(next);
 		} catch {
 			toast.error("Could not import that file");
 			await reload();
 		}
-	}, [reload]);
+	}, [commit, reload]);
+	const applyRestore = (0, import_react.useCallback)(async () => {
+		if (!restoreOffer) return;
+		const incoming = restoreOffer;
+		setRestoreOffer(null);
+		await replaceBoard(incoming);
+		toast("Board restored from this browser");
+	}, [restoreOffer, replaceBoard]);
+	const skipRestore = (0, import_react.useCallback)(() => {
+		dismissRestoreOffer();
+		setRestoreOffer(null);
+	}, []);
 	return {
 		board,
 		gangs: board?.gangs ?? [],
@@ -2204,6 +2634,9 @@ function useBoard() {
 		pins: board?.pins ?? [],
 		isLoading: !board && !error,
 		error,
+		restoreOffer,
+		applyRestore,
+		skipRestore,
 		reload,
 		saveGang,
 		saveTerritory,
@@ -2245,14 +2678,14 @@ var TOOLS = [
 	}
 ];
 var HINT = {
-	pan: "Click a territory or tag for its file. Drag corners to reshape a selected territory.",
+	pan: "Click a territory or tag for its file. Drag corners to reshape. Drag the hollow dots on edges to add a point.",
 	polygon: "Click corners. Double-click or Enter to close. Right-click undoes. Esc cancels.",
 	rect: "Click and drag a rectangle over the map.",
 	pin: "Click the map to drop a colored dot."
 };
 function Desk() {
 	const board = useBoard();
-	const { gangs, territories, pins, isLoading, error, reload } = board;
+	const { gangs, territories, pins, isLoading, error, reload, restoreOffer, applyRestore, skipRestore } = board;
 	const [tool, setTool] = (0, import_react.useState)("pan");
 	const [selection, setSelection] = (0, import_react.useState)(null);
 	const [focus, setFocus] = (0, import_react.useState)(null);
@@ -2557,7 +2990,8 @@ function Desk() {
 								size: "icon-sm",
 								variant: "ghost",
 								onClick: exportJson,
-								"aria-label": "Export",
+								"aria-label": "Export backup",
+								title: "Download a backup file",
 								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Download, { className: "size-4" })
 							}),
 							/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, {
@@ -2789,6 +3223,15 @@ function Desk() {
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(HelpDialog, {
 				open: helpOpen,
 				onOpenChange: setHelpOpen
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(RestoreBackupDialog, {
+				open: Boolean(restoreOffer),
+				gangs: restoreOffer?.gangs.length ?? 0,
+				territories: restoreOffer?.territories.length ?? 0,
+				pins: restoreOffer?.pins.length ?? 0,
+				savedAt: restoreOffer?.savedAt ?? "",
+				onRestore: () => void applyRestore(),
+				onSkip: skipRestore
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(FiltersDialog, {
 				open: filtersOpen,

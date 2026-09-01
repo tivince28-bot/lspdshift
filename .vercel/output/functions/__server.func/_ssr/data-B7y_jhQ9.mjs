@@ -1,6 +1,7 @@
 import { n as TSS_SERVER_FUNCTION, t as createServerFn } from "./ssr.mjs";
+import { i as sortGangs, n as SEED_PINS, r as SEED_TERRITORIES, t as SEED_GANGS } from "./seed-Cix6AtGD.mjs";
 import { a as object, i as number, n as array, o as string, t as _enum } from "../_libs/zod.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/data-DigYJD0u.js
+//#region node_modules/.nitro/vite/services/ssr/assets/data-B7y_jhQ9.js
 var createServerRpc = (serverFnMeta, splitImportFn) => {
 	const url = "/_serverFn/" + serverFnMeta.id;
 	return Object.assign(splitImportFn, {
@@ -180,182 +181,6 @@ if (typeof window === "undefined" && dbSource === "pglite") globalBoot.__pgBoots
 	console.error("[db] PGLite bootstrap failed:", err);
 	throw err;
 });
-var now = "2026-01-01T00:00:00.000Z";
-var SEED_GANGS = [
-	{
-		id: "gang-gsf",
-		name: "Grove Street Families",
-		tag: "GSF",
-		color: "#2ecc71",
-		status: "active",
-		leader: "",
-		description: "South LS classic. Davis and Grove.",
-		members: "",
-		notes: "",
-		logo: "",
-		createdAt: now,
-		updatedAt: now
-	},
-	{
-		id: "gang-ballas",
-		name: "Ballas",
-		tag: "BLS",
-		color: "#9b59b6",
-		status: "active",
-		leader: "",
-		description: "Davis / Chamberlain.",
-		members: "",
-		notes: "",
-		logo: "",
-		createdAt: now,
-		updatedAt: now
-	},
-	{
-		id: "gang-vagos",
-		name: "Los Santos Vagos",
-		tag: "VGS",
-		color: "#f1c40f",
-		status: "active",
-		leader: "",
-		description: "East side — Rancho to El Burro.",
-		members: "",
-		notes: "",
-		logo: "",
-		createdAt: now,
-		updatedAt: now
-	}
-];
-/** Turf in GTA V game XY (lat = Y, lng = X). */
-var SEED_TERRITORIES = [
-	{
-		id: "turf-gsf-davis",
-		gangId: "gang-gsf",
-		name: "Davis / Grove",
-		kind: "turf",
-		color: null,
-		polygon: [
-			{
-				lat: -1680,
-				lng: 40
-			},
-			{
-				lat: -1680,
-				lng: 230
-			},
-			{
-				lat: -1860,
-				lng: 230
-			},
-			{
-				lat: -1860,
-				lng: 40
-			}
-		],
-		notes: "Grove Street and the Davis blocks.",
-		createdAt: now,
-		updatedAt: now
-	},
-	{
-		id: "turf-ballas-chamberlain",
-		gangId: "gang-ballas",
-		name: "Chamberlain Hills",
-		kind: "turf",
-		color: null,
-		polygon: [
-			{
-				lat: -1500,
-				lng: -280
-			},
-			{
-				lat: -1500,
-				lng: -40
-			},
-			{
-				lat: -1680,
-				lng: -40
-			},
-			{
-				lat: -1680,
-				lng: -280
-			}
-		],
-		notes: "Chamberlain and the Forum Drive cut.",
-		createdAt: now,
-		updatedAt: now
-	},
-	{
-		id: "turf-vagos-rancho",
-		gangId: "gang-vagos",
-		name: "Rancho / El Burro",
-		kind: "claimed",
-		color: null,
-		polygon: [
-			{
-				lat: -1740,
-				lng: 280
-			},
-			{
-				lat: -1740,
-				lng: 560
-			},
-			{
-				lat: -1980,
-				lng: 560
-			},
-			{
-				lat: -1980,
-				lng: 280
-			}
-		],
-		notes: "East LS yellow.",
-		createdAt: now,
-		updatedAt: now
-	}
-];
-var SEED_PINS = [
-	{
-		id: "pin-gsf-grove",
-		gangId: "gang-gsf",
-		name: "Grove Street throw-up",
-		kind: "throw-up",
-		color: null,
-		lat: -1750,
-		lng: 112,
-		notes: "Green GSF on the wall by the house.",
-		dateFound: "2026-01-01",
-		image: "",
-		createdAt: now,
-		updatedAt: now
-	},
-	{
-		id: "pin-ballas-forum",
-		gangId: "gang-ballas",
-		name: "Forum Drive mural",
-		kind: "mural",
-		color: null,
-		lat: -1595,
-		lng: -165,
-		notes: "",
-		dateFound: "2026-01-01",
-		image: "",
-		createdAt: now,
-		updatedAt: now
-	},
-	{
-		id: "pin-vagos-elburro",
-		gangId: "gang-vagos",
-		name: "El Burro stencil",
-		kind: "stencil",
-		color: null,
-		lat: -1923,
-		lng: 1491,
-		notes: "",
-		dateFound: "2026-01-01",
-		image: "",
-		createdAt: now,
-		updatedAt: now
-	}
-];
 var gangStatus = _enum([
 	"active",
 	"dormant",
@@ -481,12 +306,30 @@ async function insertSeed(sql) {
       values (${p.id}, ${p.gangId}, ${p.name}, ${p.kind}, ${p.color}, ${p.lat}, ${p.lng}, ${p.notes}, ${p.dateFound}, ${p.image})
     `;
 }
+async function ensureRoster(sql) {
+	for (const g of SEED_GANGS) await sql`
+      insert into gangs (id, name, tag, color, status, leader, description, members, notes, logo)
+      values (${g.id}, ${g.name}, ${g.tag}, ${g.color}, ${g.status}, ${g.leader}, ${g.description}, ${g.members}, ${g.notes}, ${g.logo})
+      on conflict (id) do nothing
+    `;
+	await sql`
+    update gangs
+    set name = ${"Families"}, tag = ${"FAM"}, color = ${"#2ecc71"}
+    where id = ${"gang-gsf"} and name = ${"Grove Street Families"}
+  `;
+	await sql`
+    update gangs
+    set name = ${"VAGOS"}, tag = ${"VGS"}, color = ${"#f4d03f"}
+    where id = ${"gang-vagos"} and name = ${"Los Santos Vagos"}
+  `;
+}
 async function ensureSeed() {
 	const sql = await getSql();
 	if (((await sql`select count(*)::int as n from gangs`)[0]?.n ?? 0) === 0) {
 		await insertSeed(sql);
 		return;
 	}
+	await ensureRoster(sql);
 	const sample = await sql`select lat from pins where id = ${"pin-gsf-grove"}`;
 	const lat = Number(sample[0]?.lat ?? 0);
 	if (lat > 0 && lat < 2e3) {
@@ -514,7 +357,7 @@ var listBoard = createServerFn({ method: "GET" }).handler(listBoard_createServer
 	const territories = await sql`select * from territories order by name asc`;
 	const pins = await sql`select * from pins order by name asc`;
 	return {
-		gangs: gangs.map(mapGang),
+		gangs: sortGangs(gangs.map(mapGang)),
 		territories: territories.map(mapTerritory),
 		pins: pins.map(mapPin)
 	};
@@ -691,7 +534,7 @@ var importBoard = createServerFn({ method: "POST" }).validator((d) => boardInput
 	const territories = await sql`select * from territories order by name asc`;
 	const pins = await sql`select * from pins order by name asc`;
 	return {
-		gangs: gangs.map(mapGang),
+		gangs: sortGangs(gangs.map(mapGang)),
 		territories: territories.map(mapTerritory),
 		pins: pins.map(mapPin)
 	};
