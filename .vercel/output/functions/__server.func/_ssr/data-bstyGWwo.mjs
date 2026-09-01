@@ -1,7 +1,7 @@
 import { n as TSS_SERVER_FUNCTION, t as createServerFn } from "./ssr.mjs";
-import { i as sortGangs, n as SEED_PINS, r as SEED_TERRITORIES, t as SEED_GANGS } from "./seed-Cix6AtGD.mjs";
+import { n as sortGangs, t as SEED_GANGS } from "./seed-D6RAyj55.mjs";
 import { a as object, i as number, n as array, o as string, t as _enum } from "../_libs/zod.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/data-B7y_jhQ9.js
+//#region node_modules/.nitro/vite/services/ssr/assets/data-bstyGWwo.js
 var createServerRpc = (serverFnMeta, splitImportFn) => {
 	const url = "/_serverFn/" + serverFnMeta.id;
 	return Object.assign(splitImportFn, {
@@ -52,15 +52,31 @@ function pendingMigrations(paths, applied) {
 		path
 	})).sort((a, b) => a.name.localeCompare(b.name)).filter(({ name }) => !done.has(name));
 }
-var rawDatabaseUrl = typeof process !== "undefined" ? process.env.DATABASE_URL : void 0;
-var databaseUrl = rawDatabaseUrl && rawDatabaseUrl.trim() ? rawDatabaseUrl : void 0;
+function envValue(key) {
+	if (typeof process === "undefined") return void 0;
+	const bag = process.env;
+	if (!bag) return void 0;
+	const value = bag[key];
+	if (typeof value !== "string") return void 0;
+	const trimmed = value.trim();
+	return trimmed ? trimmed : void 0;
+}
+function isDeployedServer() {
+	return Boolean(envValue("VERCEL") || envValue("VERCEL_ENV") || envValue("AWS_LAMBDA_FUNCTION_NAME") || envValue("LAMBDA_TASK_ROOT"));
+}
+function readDatabaseUrl() {
+	return envValue("DATABASE_URL");
+}
 /**
-* Active backend: real **Neon** when `DATABASE_URL` is set (deployed / configured
-* sandbox), otherwise a local embedded **PGLite** (Postgres compiled to WASM) so
-* the app has a working database even with nothing configured — the live preview
-* included. Swap in Neon later by just setting `DATABASE_URL`; no code changes.
+* Active backend: real **Neon** when `DATABASE_URL` is set (deployed).
+* Local preview without a URL uses embedded **PGLite**. Deployed runtimes
+* never fall back to PGLite — that path is in-memory and looks like a reset.
 */
-var dbSource = databaseUrl ? "neon" : "pglite";
+function getDbSource() {
+	if (readDatabaseUrl()) return "neon";
+	if (isDeployedServer()) return "neon";
+	return "pglite";
+}
 /**
 * Init state lives on globalThis as promises: dev HMR creates new instances of
 * this module, and two instances racing module-level state would open a second
@@ -69,18 +85,6 @@ var dbSource = databaseUrl ? "neon" : "pglite";
 * `getSql()`). A failed init clears its slot so the next call retries.
 */
 var globalRef = globalThis;
-/**
-* Result-type parity: Postgres sends every value as text plus a type OID — the
-* JS value is the DRIVER's parsing choice, and pg and PGLite disagree (pg:
-* int8 -> string, date -> local-midnight Date; PGLite: int8 -> BigInt, which
-* JSON.stringify rejects, date -> UTC Date). Normalize both so preview and
-* production return identical, JSON-safe shapes:
-*   int8/bigint (incl. count(*)) -> number (past 2^53 loses precision — cast
-*                                   `::text` if you ever need huge integers)
-*   date                         -> 'YYYY-MM-DD' string
-*   interval                     -> Postgres interval text
-* numeric already comes back as a string on both (arbitrary precision).
-*/
 var OID_INT8 = 20;
 var OID_DATE = 1082;
 var OID_INTERVAL = 1186;
@@ -97,11 +101,13 @@ function toSql(run) {
 }
 function createNeonSql() {
 	globalRef.__pgSqlPromise__ ??= (async () => {
+		const url = readDatabaseUrl();
+		if (!url) throw new Error("The public database is not connected. Tags and zones cannot be saved until it is.");
 		const { Pool, types } = await import("../_libs/pg.mjs").then((n) => n.t);
 		types.setTypeParser(OID_INT8, Number);
 		types.setTypeParser(OID_DATE, identity);
 		types.setTypeParser(OID_INTERVAL, identity);
-		const pool = new Pool({ connectionString: databaseUrl });
+		const pool = new Pool({ connectionString: url });
 		return toSql(async (text, params) => {
 			return (await pool.query(text, params)).rows;
 		});
@@ -145,15 +151,8 @@ async function createPgliteSql() {
 var sqlPromise = null;
 async function createSql() {
 	if (typeof window !== "undefined") throw new Error("@/lib/db is server-only — call getSql() from a createServerFn handler or a server route loader, never from client code.");
-	return dbSource === "neon" ? createNeonSql() : createPgliteSql();
+	return getDbSource() === "neon" ? createNeonSql() : createPgliteSql();
 }
-/**
-* Get the shared, **server-only** SQL client. Neon when `DATABASE_URL` is set,
-* otherwise the local PGLite fallback. Memoized — safe to call per request.
-*
-* Schema comes from `migrations/*.sql`, auto-applied before the first query on
-* both backends — define tables there, never inline in server functions.
-*/
 function getSql() {
 	sqlPromise ??= createSql().catch((err) => {
 		sqlPromise = null;
@@ -161,26 +160,6 @@ function getSql() {
 	});
 	return sqlPromise;
 }
-/**
-* Finish DB bootstrap before the server handles traffic.
-*
-* - **PGLite** (preview / no `DATABASE_URL`): open the in-memory DB and apply
-*   `migrations/*.sql`. Idempotent — concurrent callers share one promise.
-* - **Neon**: no-op (pool is created lazily on first query).
-*
-* Vite `configureServer` awaits this at dev startup; production imports of this
-* module kick it off immediately (see bottom of file).
-*/
-function ensureDbReady() {
-	if (dbSource !== "pglite") return Promise.resolve();
-	return getSql().then(() => void 0);
-}
-var globalBoot = globalThis;
-if (typeof window === "undefined" && dbSource === "pglite") globalBoot.__pgBootstrapPromise__ ??= ensureDbReady().catch((err) => {
-	globalBoot.__pgBootstrapPromise__ = void 0;
-	console.error("[db] PGLite bootstrap failed:", err);
-	throw err;
-});
 var gangStatus = _enum([
 	"active",
 	"dormant",
@@ -296,22 +275,11 @@ async function insertSeed(sql) {
 	for (const g of SEED_GANGS) await sql`
       insert into gangs (id, name, tag, color, status, leader, description, members, notes, logo)
       values (${g.id}, ${g.name}, ${g.tag}, ${g.color}, ${g.status}, ${g.leader}, ${g.description}, ${g.members}, ${g.notes}, ${g.logo})
-    `;
-	for (const t of SEED_TERRITORIES) await sql`
-      insert into territories (id, gang_id, name, kind, color, polygon, notes)
-      values (${t.id}, ${t.gangId}, ${t.name}, ${t.kind}, ${t.color}, ${JSON.stringify(t.polygon)}, ${t.notes})
-    `;
-	for (const p of SEED_PINS) await sql`
-      insert into pins (id, gang_id, name, kind, color, lat, lng, notes, date_found, image)
-      values (${p.id}, ${p.gangId}, ${p.name}, ${p.kind}, ${p.color}, ${p.lat}, ${p.lng}, ${p.notes}, ${p.dateFound}, ${p.image})
+      on conflict (id) do nothing
     `;
 }
 async function ensureRoster(sql) {
-	for (const g of SEED_GANGS) await sql`
-      insert into gangs (id, name, tag, color, status, leader, description, members, notes, logo)
-      values (${g.id}, ${g.name}, ${g.tag}, ${g.color}, ${g.status}, ${g.leader}, ${g.description}, ${g.members}, ${g.notes}, ${g.logo})
-      on conflict (id) do nothing
-    `;
+	await insertSeed(sql);
 	await sql`
     update gangs
     set name = ${"Families"}, tag = ${"FAM"}, color = ${"#2ecc71"}
@@ -324,26 +292,7 @@ async function ensureRoster(sql) {
   `;
 }
 async function ensureSeed() {
-	const sql = await getSql();
-	if (((await sql`select count(*)::int as n from gangs`)[0]?.n ?? 0) === 0) {
-		await insertSeed(sql);
-		return;
-	}
-	await ensureRoster(sql);
-	const sample = await sql`select lat from pins where id = ${"pin-gsf-grove"}`;
-	const lat = Number(sample[0]?.lat ?? 0);
-	if (lat > 0 && lat < 2e3) {
-		for (const t of SEED_TERRITORIES) await sql`
-        update territories
-        set polygon = ${JSON.stringify(t.polygon)}, updated_at = now()
-        where id = ${t.id}
-      `;
-		for (const p of SEED_PINS) await sql`
-        update pins
-        set lat = ${p.lat}, lng = ${p.lng}, updated_at = now()
-        where id = ${p.id}
-      `;
-	}
+	await ensureRoster(await getSql());
 }
 var listBoard_createServerFn_handler = createServerRpc({
 	id: "1678c0ce9cf5e5855f534bbe484f5d912f849adbb25be4b052440661b6622093",
@@ -479,6 +428,9 @@ var importBoard_createServerFn_handler = createServerRpc({
 }, (opts) => importBoard.__executeServer(opts));
 var importBoard = createServerFn({ method: "POST" }).validator((d) => boardInput.parse(d)).handler(importBoard_createServerFn_handler, async ({ data }) => {
 	const sql = await getSql();
+	await sql`delete from pins`;
+	await sql`delete from territories`;
+	await sql`delete from gangs`;
 	for (const g of data.gangs) await sql`
         insert into gangs (id, name, tag, color, status, leader, description, members, notes, logo, updated_at)
         values (

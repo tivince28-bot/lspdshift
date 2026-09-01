@@ -2,7 +2,7 @@ import { o as __toESM } from "../_runtime.mjs";
 import { u as require_react } from "../_libs/@floating-ui/react-dom+[...].mjs";
 import { n as require_jsx_runtime } from "../_libs/radix-ui__react-context+react.mjs";
 import { n as TSS_SERVER_FUNCTION, r as getServerFnById, t as createServerFn } from "./ssr.mjs";
-import { t as SEED_GANGS } from "./seed-Cix6AtGD.mjs";
+import { t as SEED_GANGS } from "./seed-D6RAyj55.mjs";
 import { a as object, i as number, n as array, o as string, t as _enum } from "../_libs/zod.mjs";
 import { _ as Download, a as Trash2, c as Plus, d as MapPinned, f as Hand, g as Expand, h as EyeOff, l as Pentagon, m as Eye, n as Users, o as Square, p as Funnel, r as Upload, s as Search, t as X, u as Pencil, v as CircleHelp, y as CircleDot } from "../_libs/lucide-react.mjs";
 import { n as toast, t as Toaster } from "../_libs/sonner.mjs";
@@ -12,7 +12,7 @@ import { a as DialogOverlay$1, g as Slot, i as DialogDescription$1, n as DialogC
 import { i as Viewport, n as Scrollbar, r as Thumb, t as Root } from "../_libs/radix-ui__react-scroll-area.mjs";
 import { t as Root$1 } from "../_libs/radix-ui__react-label.mjs";
 import { a as Trigger, i as Root3, n as Portal, r as Provider, t as Content2 } from "../_libs/@radix-ui/react-tooltip+[...].mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/routes-DsGOBrD7.js
+//#region node_modules/.nitro/vite/services/ssr/assets/routes-BeM9Gt4p.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_runtime = require_jsx_runtime();
 function cn(...inputs) {
@@ -2243,7 +2243,6 @@ var IDB_NAME = "ls-grid";
 var IDB_STORE = "kv";
 var IDB_KEY = "board-backup";
 var META_KEY = "ls-grid-backup-meta";
-var DISMISS_KEY = "ls-grid-restore-dismissed";
 new Set(SEED_GANGS.map((g) => g.id));
 function isBrowser() {
 	return typeof window !== "undefined" && typeof indexedDB !== "undefined";
@@ -2322,14 +2321,6 @@ function backupIsRicher(backup, server) {
 	if (backup.territories.length > server.territories.length) return true;
 	if (backup.pins.length > server.pins.length) return true;
 	return false;
-}
-function restoreWasDismissed() {
-	if (!isBrowser()) return false;
-	return sessionStorage.getItem(DISMISS_KEY) === "1";
-}
-function dismissRestoreOffer() {
-	if (!isBrowser()) return;
-	sessionStorage.setItem(DISMISS_KEY, "1");
 }
 var createSsrRpc = (functionId) => {
 	const url = "/_serverFn/" + functionId;
@@ -2450,37 +2441,58 @@ function pinPayload(p) {
 		image: p.image ?? ""
 	};
 }
+function toImport(board) {
+	return {
+		gangs: board.gangs.map(gangPayload),
+		territories: board.territories.map(turfPayload),
+		pins: board.pins.map(pinPayload)
+	};
+}
 function useBoard() {
 	const [board, setBoard] = (0, import_react.useState)(null);
 	const [error, setError] = (0, import_react.useState)(null);
 	const [restoreOffer, setRestoreOffer] = (0, import_react.useState)(null);
-	const checkedBackup = (0, import_react.useRef)(false);
-	const commit = (0, import_react.useCallback)((next) => {
+	const boardRef = (0, import_react.useRef)(null);
+	const restoring = (0, import_react.useRef)(false);
+	const persist = (0, import_react.useCallback)((next) => {
+		boardRef.current = next;
 		setBoard(next);
 		saveBoardBackup(next);
 	}, []);
+	const pushBoard = (0, import_react.useCallback)(async (incoming) => {
+		const next = await importBoard({ data: toImport(incoming) });
+		persist(next);
+		return next;
+	}, [persist]);
 	const reload = (0, import_react.useCallback)(async () => {
+		if (restoring.current) return;
 		try {
 			const next = await listBoard();
 			setError(null);
-			if (!checkedBackup.current) {
-				checkedBackup.current = true;
-				const bak = await loadBoardBackup();
-				if (bak && backupIsRicher(bak, next) && !restoreWasDismissed()) {
-					setRestoreOffer(bak);
-					setBoard(next);
-					return;
+			const bak = await loadBoardBackup();
+			const memory = boardRef.current;
+			const candidate = memory && backupIsRicher(memory, next) ? memory : bak && backupIsRicher(bak, next) ? bak : null;
+			if (candidate) {
+				restoring.current = true;
+				try {
+					await pushBoard(candidate);
+					toast("Board restored — tags and turf were kept");
+				} catch {
+					persist(candidate);
+					toast.error("Could not sync the board; local copy kept");
+				} finally {
+					restoring.current = false;
 				}
-				setBoard(next);
-				if (!bak || !backupIsRicher(bak, next)) saveBoardBackup(next);
 				return;
 			}
-			setBoard(next);
+			persist(next);
 		} catch (err) {
 			const message = err instanceof Error ? err.message : "Could not load the board";
 			setError(message);
+			const bak = await loadBoardBackup();
+			if (bak) persist(bak);
 		}
-	}, []);
+	}, [persist, pushBoard]);
 	(0, import_react.useEffect)(() => {
 		reload();
 	}, [reload]);
@@ -2494,137 +2506,112 @@ function useBoard() {
 	const saveGang = (0, import_react.useCallback)(async (g) => {
 		try {
 			const saved = await upsertGang({ data: gangPayload(g) });
-			setBoard((b) => {
-				if (!b) return b;
-				const exists = b.gangs.some((x) => x.id === saved.id);
-				const next = {
-					...b,
-					gangs: exists ? b.gangs.map((x) => x.id === saved.id ? saved : x) : [...b.gangs, saved]
-				};
-				saveBoardBackup(next);
-				return next;
+			const current = boardRef.current;
+			if (!current) return;
+			const exists = current.gangs.some((x) => x.id === saved.id);
+			persist({
+				...current,
+				gangs: exists ? current.gangs.map((x) => x.id === saved.id ? saved : x) : [...current.gangs, saved]
 			});
 		} catch {
 			toast.error("Could not save gang");
 			await reload();
 		}
-	}, [reload]);
+	}, [persist, reload]);
 	const saveTerritory = (0, import_react.useCallback)(async (t) => {
 		try {
 			const saved = await upsertTerritory({ data: turfPayload(t) });
-			setBoard((b) => {
-				if (!b) return b;
-				const exists = b.territories.some((x) => x.id === saved.id);
-				const next = {
-					...b,
-					territories: exists ? b.territories.map((x) => x.id === saved.id ? saved : x) : [...b.territories, saved]
-				};
-				saveBoardBackup(next);
-				return next;
+			const current = boardRef.current;
+			if (!current) return;
+			const exists = current.territories.some((x) => x.id === saved.id);
+			persist({
+				...current,
+				territories: exists ? current.territories.map((x) => x.id === saved.id ? saved : x) : [...current.territories, saved]
 			});
 		} catch {
 			toast.error("Could not save territory");
 			await reload();
 		}
-	}, [reload]);
+	}, [persist, reload]);
 	const savePin = (0, import_react.useCallback)(async (p) => {
 		try {
 			const saved = await upsertPin({ data: pinPayload(p) });
-			setBoard((b) => {
-				if (!b) return b;
-				const exists = b.pins.some((x) => x.id === saved.id);
-				const next = {
-					...b,
-					pins: exists ? b.pins.map((x) => x.id === saved.id ? saved : x) : [...b.pins, saved]
-				};
-				saveBoardBackup(next);
-				return next;
+			const current = boardRef.current;
+			if (!current) return;
+			const exists = current.pins.some((x) => x.id === saved.id);
+			persist({
+				...current,
+				pins: exists ? current.pins.map((x) => x.id === saved.id ? saved : x) : [...current.pins, saved]
 			});
 		} catch {
 			toast.error("Could not save tag");
 			await reload();
 		}
-	}, [reload]);
+	}, [persist, reload]);
 	const removeGang = (0, import_react.useCallback)(async (id) => {
 		try {
 			await deleteGang({ data: { id } });
-			setBoard((b) => {
-				if (!b) return b;
-				const next = {
-					gangs: b.gangs.filter((g) => g.id !== id),
-					territories: b.territories.map((t) => t.gangId === id ? {
-						...t,
-						gangId: null
-					} : t),
-					pins: b.pins.map((p) => p.gangId === id ? {
-						...p,
-						gangId: null
-					} : p)
-				};
-				saveBoardBackup(next);
-				return next;
+			const current = boardRef.current;
+			if (!current) return;
+			persist({
+				gangs: current.gangs.filter((g) => g.id !== id),
+				territories: current.territories.map((t) => t.gangId === id ? {
+					...t,
+					gangId: null
+				} : t),
+				pins: current.pins.map((p) => p.gangId === id ? {
+					...p,
+					gangId: null
+				} : p)
 			});
 		} catch {
 			toast.error("Could not remove gang");
 			await reload();
 		}
-	}, [reload]);
+	}, [persist, reload]);
 	const removeTerritory = (0, import_react.useCallback)(async (id) => {
 		try {
 			await deleteTerritory({ data: { id } });
-			setBoard((b) => {
-				if (!b) return b;
-				const next = {
-					...b,
-					territories: b.territories.filter((t) => t.id !== id)
-				};
-				saveBoardBackup(next);
-				return next;
+			const current = boardRef.current;
+			if (!current) return;
+			persist({
+				...current,
+				territories: current.territories.filter((t) => t.id !== id)
 			});
 		} catch {
 			toast.error("Could not remove territory");
 			await reload();
 		}
-	}, [reload]);
+	}, [persist, reload]);
 	const removePin = (0, import_react.useCallback)(async (id) => {
 		try {
 			await deletePin({ data: { id } });
-			setBoard((b) => {
-				if (!b) return b;
-				const next = {
-					...b,
-					pins: b.pins.filter((p) => p.id !== id)
-				};
-				saveBoardBackup(next);
-				return next;
+			const current = boardRef.current;
+			if (!current) return;
+			persist({
+				...current,
+				pins: current.pins.filter((p) => p.id !== id)
 			});
 		} catch {
 			toast.error("Could not remove tag");
 			await reload();
 		}
-	}, [reload]);
+	}, [persist, reload]);
 	const replaceBoard = (0, import_react.useCallback)(async (incoming) => {
 		try {
-			const next = await importBoard({ data: {
-				gangs: incoming.gangs.map(gangPayload),
-				territories: incoming.territories.map(turfPayload),
-				pins: incoming.pins.map(pinPayload)
-			} });
-			commit(next);
+			await pushBoard(incoming);
 		} catch {
 			toast.error("Could not import that file");
 			await reload();
 		}
-	}, [commit, reload]);
+	}, [pushBoard, reload]);
 	const applyRestore = (0, import_react.useCallback)(async () => {
 		if (!restoreOffer) return;
 		const incoming = restoreOffer;
 		setRestoreOffer(null);
 		await replaceBoard(incoming);
-		toast("Board restored from this browser");
 	}, [restoreOffer, replaceBoard]);
 	const skipRestore = (0, import_react.useCallback)(() => {
-		dismissRestoreOffer();
 		setRestoreOffer(null);
 	}, []);
 	return {

@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getSql } from "@/lib/db";
-import { SEED_GANGS, SEED_PINS, SEED_TERRITORIES, sortGangs } from "@/lib/map/seed";
+import { SEED_GANGS, sortGangs } from "@/lib/map/seed";
 import type { Board, Gang, LatLng, Pin, Territory } from "@/lib/types";
 
 const gangStatus = z.enum(["active", "dormant", "unknown"]);
@@ -159,18 +159,7 @@ async function insertSeed(sql: Awaited<ReturnType<typeof getSql>>): Promise<void
     await sql`
       insert into gangs (id, name, tag, color, status, leader, description, members, notes, logo)
       values (${g.id}, ${g.name}, ${g.tag}, ${g.color}, ${g.status}, ${g.leader}, ${g.description}, ${g.members}, ${g.notes}, ${g.logo})
-    `;
-  }
-  for (const t of SEED_TERRITORIES) {
-    await sql`
-      insert into territories (id, gang_id, name, kind, color, polygon, notes)
-      values (${t.id}, ${t.gangId}, ${t.name}, ${t.kind}, ${t.color}, ${JSON.stringify(t.polygon)}, ${t.notes})
-    `;
-  }
-  for (const p of SEED_PINS) {
-    await sql`
-      insert into pins (id, gang_id, name, kind, color, lat, lng, notes, date_found, image)
-      values (${p.id}, ${p.gangId}, ${p.name}, ${p.kind}, ${p.color}, ${p.lat}, ${p.lng}, ${p.notes}, ${p.dateFound}, ${p.image})
+      on conflict (id) do nothing
     `;
   }
 }
@@ -178,13 +167,7 @@ async function insertSeed(sql: Awaited<ReturnType<typeof getSql>>): Promise<void
 async function ensureRoster(
   sql: Awaited<ReturnType<typeof getSql>>,
 ): Promise<void> {
-  for (const g of SEED_GANGS) {
-    await sql`
-      insert into gangs (id, name, tag, color, status, leader, description, members, notes, logo)
-      values (${g.id}, ${g.name}, ${g.tag}, ${g.color}, ${g.status}, ${g.leader}, ${g.description}, ${g.members}, ${g.notes}, ${g.logo})
-      on conflict (id) do nothing
-    `;
-  }
+  await insertSeed(sql);
   await sql`
     update gangs
     set name = ${"Families"}, tag = ${"FAM"}, color = ${"#2ecc71"}
@@ -199,32 +182,7 @@ async function ensureRoster(
 
 async function ensureSeed(): Promise<void> {
   const sql = await getSql();
-  const counts = await sql<{ n: number }>`select count(*)::int as n from gangs`;
-  if ((counts[0]?.n ?? 0) === 0) {
-    await insertSeed(sql);
-    return;
-  }
   await ensureRoster(sql);
-  // TreeFitty pixel-space seed (Y ~ 800) → GTA V game XY.
-  const sample =
-    await sql<{ lat: number }>`select lat from pins where id = ${"pin-gsf-grove"}`;
-  const lat = Number(sample[0]?.lat ?? 0);
-  if (lat > 0 && lat < 2000) {
-    for (const t of SEED_TERRITORIES) {
-      await sql`
-        update territories
-        set polygon = ${JSON.stringify(t.polygon)}, updated_at = now()
-        where id = ${t.id}
-      `;
-    }
-    for (const p of SEED_PINS) {
-      await sql`
-        update pins
-        set lat = ${p.lat}, lng = ${p.lng}, updated_at = now()
-        where id = ${p.id}
-      `;
-    }
-  }
 }
 
 export const listBoard = createServerFn({ method: "GET" }).handler(
@@ -354,6 +312,9 @@ export const importBoard = createServerFn({ method: "POST" })
   .validator((d: unknown) => boardInput.parse(d))
   .handler(async ({ data }): Promise<Board> => {
     const sql = await getSql();
+    await sql`delete from pins`;
+    await sql`delete from territories`;
+    await sql`delete from gangs`;
     for (const g of data.gangs) {
       await sql`
         insert into gangs (id, name, tag, color, status, leader, description, members, notes, logo, updated_at)

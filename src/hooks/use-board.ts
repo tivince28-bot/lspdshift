@@ -2,9 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   backupIsRicher,
-  dismissRestoreOffer,
   loadBoardBackup,
-  restoreWasDismissed,
   saveBoardBackup,
   type BoardBackup,
 } from "@/lib/backup";
@@ -62,45 +60,67 @@ function pinPayload(p: Omit<Pin, "createdAt" | "updatedAt">) {
   };
 }
 
+function toImport(board: Board) {
+  return {
+    gangs: board.gangs.map(gangPayload),
+    territories: board.territories.map(turfPayload),
+    pins: board.pins.map(pinPayload),
+  };
+}
+
 export function useBoard() {
   const [board, setBoard] = useState<Board | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [restoreOffer, setRestoreOffer] = useState<BoardBackup | null>(null);
-  const checkedBackup = useRef(false);
+  const boardRef = useRef<Board | null>(null);
+  const restoring = useRef(false);
 
-  const commit = useCallback((next: Board) => {
+  const persist = useCallback((next: Board) => {
+    boardRef.current = next;
     setBoard(next);
     void saveBoardBackup(next);
   }, []);
 
+  const pushBoard = useCallback(async (incoming: Board) => {
+    const next = await importBoard({ data: toImport(incoming) });
+    persist(next);
+    return next;
+  }, [persist]);
+
   const reload = useCallback(async () => {
+    if (restoring.current) return;
     try {
       const next = await listBoard();
       setError(null);
-      if (!checkedBackup.current) {
-        checkedBackup.current = true;
-        const bak = await loadBoardBackup();
-        if (
-          bak &&
-          backupIsRicher(bak, next) &&
-          !restoreWasDismissed()
-        ) {
-          setRestoreOffer(bak);
-          setBoard(next);
-          return;
-        }
-        setBoard(next);
-        if (!bak || !backupIsRicher(bak, next)) {
-          void saveBoardBackup(next);
+      const bak = await loadBoardBackup();
+      const memory = boardRef.current;
+      const candidate =
+        memory && backupIsRicher(memory, next)
+          ? memory
+          : bak && backupIsRicher(bak, next)
+            ? bak
+            : null;
+      if (candidate) {
+        restoring.current = true;
+        try {
+          await pushBoard(candidate);
+          toast("Board restored — tags and turf were kept");
+        } catch {
+          persist(candidate);
+          toast.error("Could not sync the board; local copy kept");
+        } finally {
+          restoring.current = false;
         }
         return;
       }
-      setBoard(next);
+      persist(next);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not load the board";
       setError(message);
+      const bak = await loadBoardBackup();
+      if (bak) persist(bak);
     }
-  }, []);
+  }, [persist, pushBoard]);
 
   useEffect(() => {
     void reload();
@@ -118,154 +138,132 @@ export function useBoard() {
     async (g: Omit<Gang, "createdAt" | "updatedAt">) => {
       try {
         const saved = await upsertGang({ data: gangPayload(g) });
-        setBoard((b) => {
-          if (!b) return b;
-          const exists = b.gangs.some((x) => x.id === saved.id);
-          const next = {
-            ...b,
-            gangs: exists
-              ? b.gangs.map((x) => (x.id === saved.id ? saved : x))
-              : [...b.gangs, saved],
-          };
-          void saveBoardBackup(next);
-          return next;
+        const current = boardRef.current;
+        if (!current) return;
+        const exists = current.gangs.some((x) => x.id === saved.id);
+        persist({
+          ...current,
+          gangs: exists
+            ? current.gangs.map((x) => (x.id === saved.id ? saved : x))
+            : [...current.gangs, saved],
         });
       } catch {
         toast.error("Could not save gang");
         await reload();
       }
     },
-    [reload],
+    [persist, reload],
   );
 
   const saveTerritory = useCallback(
     async (t: Omit<Territory, "createdAt" | "updatedAt">) => {
       try {
         const saved = await upsertTerritory({ data: turfPayload(t) });
-        setBoard((b) => {
-          if (!b) return b;
-          const exists = b.territories.some((x) => x.id === saved.id);
-          const next = {
-            ...b,
-            territories: exists
-              ? b.territories.map((x) => (x.id === saved.id ? saved : x))
-              : [...b.territories, saved],
-          };
-          void saveBoardBackup(next);
-          return next;
+        const current = boardRef.current;
+        if (!current) return;
+        const exists = current.territories.some((x) => x.id === saved.id);
+        persist({
+          ...current,
+          territories: exists
+            ? current.territories.map((x) => (x.id === saved.id ? saved : x))
+            : [...current.territories, saved],
         });
       } catch {
         toast.error("Could not save territory");
         await reload();
       }
     },
-    [reload],
+    [persist, reload],
   );
 
   const savePin = useCallback(
     async (p: Omit<Pin, "createdAt" | "updatedAt">) => {
       try {
         const saved = await upsertPin({ data: pinPayload(p) });
-        setBoard((b) => {
-          if (!b) return b;
-          const exists = b.pins.some((x) => x.id === saved.id);
-          const next = {
-            ...b,
-            pins: exists
-              ? b.pins.map((x) => (x.id === saved.id ? saved : x))
-              : [...b.pins, saved],
-          };
-          void saveBoardBackup(next);
-          return next;
+        const current = boardRef.current;
+        if (!current) return;
+        const exists = current.pins.some((x) => x.id === saved.id);
+        persist({
+          ...current,
+          pins: exists
+            ? current.pins.map((x) => (x.id === saved.id ? saved : x))
+            : [...current.pins, saved],
         });
       } catch {
         toast.error("Could not save tag");
         await reload();
       }
     },
-    [reload],
+    [persist, reload],
   );
 
   const removeGang = useCallback(
     async (id: string) => {
       try {
         await deleteGang({ data: { id } });
-        setBoard((b) => {
-          if (!b) return b;
-          const next = {
-            gangs: b.gangs.filter((g) => g.id !== id),
-            territories: b.territories.map((t) =>
-              t.gangId === id ? { ...t, gangId: null } : t,
-            ),
-            pins: b.pins.map((p) => (p.gangId === id ? { ...p, gangId: null } : p)),
-          };
-          void saveBoardBackup(next);
-          return next;
+        const current = boardRef.current;
+        if (!current) return;
+        persist({
+          gangs: current.gangs.filter((g) => g.id !== id),
+          territories: current.territories.map((t) =>
+            t.gangId === id ? { ...t, gangId: null } : t,
+          ),
+          pins: current.pins.map((p) => (p.gangId === id ? { ...p, gangId: null } : p)),
         });
       } catch {
         toast.error("Could not remove gang");
         await reload();
       }
     },
-    [reload],
+    [persist, reload],
   );
 
   const removeTerritory = useCallback(
     async (id: string) => {
       try {
         await deleteTerritory({ data: { id } });
-        setBoard((b) => {
-          if (!b) return b;
-          const next = {
-            ...b,
-            territories: b.territories.filter((t) => t.id !== id),
-          };
-          void saveBoardBackup(next);
-          return next;
+        const current = boardRef.current;
+        if (!current) return;
+        persist({
+          ...current,
+          territories: current.territories.filter((t) => t.id !== id),
         });
       } catch {
         toast.error("Could not remove territory");
         await reload();
       }
     },
-    [reload],
+    [persist, reload],
   );
 
   const removePin = useCallback(
     async (id: string) => {
       try {
         await deletePin({ data: { id } });
-        setBoard((b) => {
-          if (!b) return b;
-          const next = { ...b, pins: b.pins.filter((p) => p.id !== id) };
-          void saveBoardBackup(next);
-          return next;
+        const current = boardRef.current;
+        if (!current) return;
+        persist({
+          ...current,
+          pins: current.pins.filter((p) => p.id !== id),
         });
       } catch {
         toast.error("Could not remove tag");
         await reload();
       }
     },
-    [reload],
+    [persist, reload],
   );
 
   const replaceBoard = useCallback(
     async (incoming: Board) => {
       try {
-        const next = await importBoard({
-          data: {
-            gangs: incoming.gangs.map(gangPayload),
-            territories: incoming.territories.map(turfPayload),
-            pins: incoming.pins.map(pinPayload),
-          },
-        });
-        commit(next);
+        await pushBoard(incoming);
       } catch {
         toast.error("Could not import that file");
         await reload();
       }
     },
-    [commit, reload],
+    [pushBoard, reload],
   );
 
   const applyRestore = useCallback(async () => {
@@ -273,11 +271,9 @@ export function useBoard() {
     const incoming = restoreOffer;
     setRestoreOffer(null);
     await replaceBoard(incoming);
-    toast("Board restored from this browser");
   }, [restoreOffer, replaceBoard]);
 
   const skipRestore = useCallback(() => {
-    dismissRestoreOffer();
     setRestoreOffer(null);
   }, []);
 
