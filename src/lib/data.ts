@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getSql } from "@/lib/db";
-import { SEED_GANGS, SEED_PINS, SEED_TERRITORIES } from "@/lib/map/seed";
+import { SEED_GANGS, SEED_PINS, SEED_TERRITORIES, sortGangs } from "@/lib/map/seed";
 import type { Board, Gang, LatLng, Pin, Territory } from "@/lib/types";
 
 const gangStatus = z.enum(["active", "dormant", "unknown"]);
@@ -175,6 +175,28 @@ async function insertSeed(sql: Awaited<ReturnType<typeof getSql>>): Promise<void
   }
 }
 
+async function ensureRoster(
+  sql: Awaited<ReturnType<typeof getSql>>,
+): Promise<void> {
+  for (const g of SEED_GANGS) {
+    await sql`
+      insert into gangs (id, name, tag, color, status, leader, description, members, notes, logo)
+      values (${g.id}, ${g.name}, ${g.tag}, ${g.color}, ${g.status}, ${g.leader}, ${g.description}, ${g.members}, ${g.notes}, ${g.logo})
+      on conflict (id) do nothing
+    `;
+  }
+  await sql`
+    update gangs
+    set name = ${"Families"}, tag = ${"FAM"}, color = ${"#2ecc71"}
+    where id = ${"gang-gsf"} and name = ${"Grove Street Families"}
+  `;
+  await sql`
+    update gangs
+    set name = ${"VAGOS"}, tag = ${"VGS"}, color = ${"#f4d03f"}
+    where id = ${"gang-vagos"} and name = ${"Los Santos Vagos"}
+  `;
+}
+
 async function ensureSeed(): Promise<void> {
   const sql = await getSql();
   const counts = await sql<{ n: number }>`select count(*)::int as n from gangs`;
@@ -182,6 +204,7 @@ async function ensureSeed(): Promise<void> {
     await insertSeed(sql);
     return;
   }
+  await ensureRoster(sql);
   // TreeFitty pixel-space seed (Y ~ 800) → GTA V game XY.
   const sample =
     await sql<{ lat: number }>`select lat from pins where id = ${"pin-gsf-grove"}`;
@@ -213,7 +236,7 @@ export const listBoard = createServerFn({ method: "GET" }).handler(
       await sql<TerritoryRow>`select * from territories order by name asc`;
     const pins = await sql<PinRow>`select * from pins order by name asc`;
     return {
-      gangs: gangs.map(mapGang),
+      gangs: sortGangs(gangs.map(mapGang)),
       territories: territories.map(mapTerritory),
       pins: pins.map(mapPin),
     };
@@ -393,7 +416,7 @@ export const importBoard = createServerFn({ method: "POST" })
       await sql<TerritoryRow>`select * from territories order by name asc`;
     const pins = await sql<PinRow>`select * from pins order by name asc`;
     return {
-      gangs: gangs.map(mapGang),
+      gangs: sortGangs(gangs.map(mapGang)),
       territories: territories.map(mapTerritory),
       pins: pins.map(mapPin),
     };

@@ -86,16 +86,16 @@ export const GANG_STATUS_LABEL: Record<GangStatus, string> = {
 };
 
 export const GANG_COLOR_PRESETS = [
-  "#b33a3a",
-  "#2f7a3a",
-  "#c4a035",
-  "#2a7f98",
-  "#5c3d8a",
-  "#2f4f8a",
-  "#8a5a2f",
-  "#1f1f1f",
-  "#d8d4c8",
-  "#6a3d5c",
-  "#3d6a5c",
-  "#7a4a1f",
+  "#2ecc71",
+  "#f4d03f",
+  "#e67e22",
+  "#1d4ed8",
+  "#111111",
+  "#f5a3c7",
+  "#166534",
+  "#dc2626",
+  "#9a8b1a",
+  "#22d3ee",
+  "#c084fc",
+  "#9b59b6",
 ];

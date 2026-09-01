@@ -2,50 +2,54 @@ import type { Gang, Pin, Territory } from "@/lib/types";
 
 const now = "2026-01-01T00:00:00.000Z";
 
+function gang(
+  id: string,
+  name: string,
+  tag: string,
+  color: string,
+  description = "",
+): Gang {
+  return {
+    id,
+    name,
+    tag,
+    color,
+    status: "active",
+    leader: "",
+    description,
+    members: "",
+    notes: "",
+    logo: "",
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+/** Roster from the set legend — order is the list order. */
 export const SEED_GANGS: Gang[] = [
-  {
-    id: "gang-gsf",
-    name: "Grove Street Families",
-    tag: "GSF",
-    color: "#2ecc71",
-    status: "active",
-    leader: "",
-    description: "South LS classic. Davis and Grove.",
-    members: "",
-    notes: "",
-    logo: "",
-    createdAt: now,
-    updatedAt: now,
-  },
-  {
-    id: "gang-ballas",
-    name: "Ballas",
-    tag: "BLS",
-    color: "#9b59b6",
-    status: "active",
-    leader: "",
-    description: "Davis / Chamberlain.",
-    members: "",
-    notes: "",
-    logo: "",
-    createdAt: now,
-    updatedAt: now,
-  },
-  {
-    id: "gang-vagos",
-    name: "Los Santos Vagos",
-    tag: "VGS",
-    color: "#f1c40f",
-    status: "active",
-    leader: "",
-    description: "East side — Rancho to El Burro.",
-    members: "",
-    notes: "",
-    logo: "",
-    createdAt: now,
-    updatedAt: now,
-  },
+  gang("gang-gsf", "Families", "FAM", "#2ecc71", "South LS. Davis and Grove."),
+  gang("gang-vagos", "VAGOS", "VGS", "#f4d03f", "East side — Rancho to El Burro."),
+  gang("gang-88", "88", "88", "#e67e22"),
+  gang("gang-r60", "Rolling 60S", "R60", "#1d4ed8"),
+  gang("gang-lost-mc", "Lost MC", "LMC", "#111111"),
+  gang("gang-cdi", "Cartel de la isla", "CDI", "#f5a3c7"),
+  gang("gang-duvals", "Duvals", "DVL", "#166534"),
+  gang("gang-stb", "Satan's bastards", "STB", "#dc2626"),
+  gang("gang-navarro", "NAVARRO", "NAV", "#9a8b1a"),
+  gang("gang-otg", "OTG", "OTG", "#22d3ee"),
+  gang("gang-crimson", "Crimson District", "CRD", "#c084fc"),
+  gang("gang-ballas", "Ballas", "BLS", "#9b59b6", "Davis / Chamberlain."),
 ];
+
+export function sortGangs<T extends { id: string; name: string }>(gangs: T[]): T[] {
+  const idx = new Map(SEED_GANGS.map((g, i) => [g.id, i]));
+  return [...gangs].sort((a, b) => {
+    const ai = idx.get(a.id) ?? 1000;
+    const bi = idx.get(b.id) ?? 1000;
+    if (ai !== bi) return ai - bi;
+    return a.name.localeCompare(b.name);
+  });
+}
 
 /** Turf in GTA V game XY (lat = Y, lng = X). */
 export const SEED_TERRITORIES: Territory[] = [
