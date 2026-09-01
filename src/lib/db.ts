@@ -13,15 +13,6 @@ function envValue(key: string): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
-function isDeployedServer(): boolean {
-  return Boolean(
-    envValue("VERCEL") ||
-      envValue("VERCEL_ENV") ||
-      envValue("AWS_LAMBDA_FUNCTION_NAME") ||
-      envValue("LAMBDA_TASK_ROOT"),
-  );
-}
-
 function readDatabaseUrl(): string | undefined {
   return envValue("DATABASE_URL");
 }
@@ -33,7 +24,6 @@ function readDatabaseUrl(): string | undefined {
  */
 export function getDbSource(): DbSource {
   if (readDatabaseUrl()) return "neon";
-  if (isDeployedServer()) return "neon";
   return "pglite";
 }
 
@@ -95,9 +85,7 @@ function createNeonSql(): Promise<Sql> {
   globalRef.__pgSqlPromise__ ??= (async () => {
     const url = readDatabaseUrl();
     if (!url) {
-      throw new Error(
-        "The public database is not connected. Tags and zones cannot be saved until it is.",
-      );
+      throw new Error("DATABASE_URL is missing");
     }
     const { Pool, types } = await import("pg");
     types.setTypeParser(OID_INT8, Number);

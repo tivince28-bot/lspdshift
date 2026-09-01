@@ -1,7 +1,7 @@
 import { n as TSS_SERVER_FUNCTION, t as createServerFn } from "./ssr.mjs";
 import { n as sortGangs, t as SEED_GANGS } from "./seed-D6RAyj55.mjs";
 import { a as object, i as number, n as array, o as string, t as _enum } from "../_libs/zod.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/data-bstyGWwo.js
+//#region node_modules/.nitro/vite/services/ssr/assets/data-CgflD_0m.js
 var createServerRpc = (serverFnMeta, splitImportFn) => {
 	const url = "/_serverFn/" + serverFnMeta.id;
 	return Object.assign(splitImportFn, {
@@ -61,9 +61,6 @@ function envValue(key) {
 	const trimmed = value.trim();
 	return trimmed ? trimmed : void 0;
 }
-function isDeployedServer() {
-	return Boolean(envValue("VERCEL") || envValue("VERCEL_ENV") || envValue("AWS_LAMBDA_FUNCTION_NAME") || envValue("LAMBDA_TASK_ROOT"));
-}
 function readDatabaseUrl() {
 	return envValue("DATABASE_URL");
 }
@@ -74,7 +71,6 @@ function readDatabaseUrl() {
 */
 function getDbSource() {
 	if (readDatabaseUrl()) return "neon";
-	if (isDeployedServer()) return "neon";
 	return "pglite";
 }
 /**
@@ -102,7 +98,7 @@ function toSql(run) {
 function createNeonSql() {
 	globalRef.__pgSqlPromise__ ??= (async () => {
 		const url = readDatabaseUrl();
-		if (!url) throw new Error("The public database is not connected. Tags and zones cannot be saved until it is.");
+		if (!url) throw new Error("DATABASE_URL is missing");
 		const { Pool, types } = await import("../_libs/pg.mjs").then((n) => n.t);
 		types.setTypeParser(OID_INT8, Number);
 		types.setTypeParser(OID_DATE, identity);
