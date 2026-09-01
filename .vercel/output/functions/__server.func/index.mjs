@@ -1,7 +1,5 @@
 globalThis.__nitro_main__ = import.meta.url;
 import { i as toEventHandler, n as HTTPError, o as NodeResponse, r as defineLazyEventHandler, t as H3Core } from "./_libs/h3+rou3+srvx.mjs";
-import { t as createServerFn } from "./_libs/@tanstack/start-client-core+[...].mjs";
-import { a as object, i as number, n as array, o as string, t as _enum } from "./_libs/zod.mjs";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 //#region node_modules/nitro/dist/runtime/internal/route-rules.mjs
@@ -506,62 +504,7 @@ function sortGangs(gangs) {
 	});
 }
 //#endregion
-//#region src/lib/data.ts
-var gangStatus = _enum([
-	"active",
-	"dormant",
-	"unknown"
-]);
-var territoryKind = _enum([
-	"turf",
-	"contested",
-	"claimed"
-]);
-var pinKind = _enum([
-	"graffiti",
-	"throw-up",
-	"mural",
-	"stencil",
-	"slap",
-	"other"
-]);
-var latLng = object({
-	lat: number(),
-	lng: number()
-});
-var gangInput = object({
-	id: string().min(1),
-	name: string().min(1).max(80),
-	tag: string().max(12).default(""),
-	color: string().min(4).max(16),
-	status: gangStatus.default("active"),
-	leader: string().max(80).default(""),
-	description: string().max(2e3).default(""),
-	members: string().max(4e3).default(""),
-	notes: string().max(4e3).default(""),
-	logo: string().max(4e5).default("")
-});
-var territoryInput = object({
-	id: string().min(1),
-	gangId: string().nullable().default(null),
-	name: string().min(1).max(80),
-	kind: territoryKind.default("turf"),
-	color: string().max(16).nullable().default(null),
-	polygon: array(latLng).min(3).max(200),
-	notes: string().max(4e3).default("")
-});
-var pinInput = object({
-	id: string().min(1),
-	gangId: string().nullable().default(null),
-	name: string().min(1).max(80),
-	kind: pinKind.default("graffiti"),
-	color: string().max(16).nullable().default(null),
-	lat: number(),
-	lng: number(),
-	notes: string().max(4e3).default(""),
-	dateFound: string().max(32).default(""),
-	image: string().max(4e5).default("")
-});
+//#region src/lib/board-query.server.ts
 function asText(value) {
 	if (value instanceof Date) return value.toISOString();
 	return String(value ?? "");
@@ -618,15 +561,12 @@ function mapPin(row) {
 		updatedAt: asText(row.updated_at)
 	};
 }
-async function insertSeed(sql) {
+async function ensureRoster(sql) {
 	for (const g of SEED_GANGS) await sql`
       insert into gangs (id, name, tag, color, status, leader, description, members, notes, logo)
       values (${g.id}, ${g.name}, ${g.tag}, ${g.color}, ${g.status}, ${g.leader}, ${g.description}, ${g.members}, ${g.notes}, ${g.logo})
       on conflict (id) do nothing
     `;
-}
-async function ensureRoster(sql) {
-	await insertSeed(sql);
 	await sql`
     update gangs
     set name = ${"Families"}, tag = ${"FAM"}, color = ${"#2ecc71"}
@@ -681,179 +621,10 @@ async function hydrateFromSnapshot(sql) {
     `;
 	}
 }
-function isServerlessRuntime() {
-	if (typeof process === "undefined") return false;
-	return Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
-}
-async function maybeWriteSnapshot(board) {
-	if (isServerlessRuntime()) return;
-	if (board.territories.length === 0 && board.pins.length === 0) return;
-	try {
-		const { writeFile } = await import("node:fs/promises");
-		const { join } = await import("node:path");
-		await writeFile(join(process.cwd(), "src/lib/map/board-snapshot.json"), `${JSON.stringify({
-			gangs: board.gangs,
-			territories: board.territories,
-			pins: board.pins
-		}, null, 2)}\n`);
-	} catch {}
-}
-async function ensureSeed() {
+async function loadBoardData() {
 	const sql = await getSql();
 	await ensureRoster(sql);
 	await hydrateFromSnapshot(sql);
-}
-async function loadBoardData() {
-	await ensureSeed();
-	const sql = await getSql();
-	const gangs = await sql`select * from gangs order by name asc`;
-	const territories = await sql`select * from territories order by name asc`;
-	const pins = await sql`select * from pins order by name asc`;
-	const board = {
-		gangs: sortGangs(gangs.map(mapGang)),
-		territories: territories.map(mapTerritory),
-		pins: pins.map(mapPin)
-	};
-	maybeWriteSnapshot(board);
-	return board;
-}
-var listBoard = createServerFn({ method: "GET" }).handler(async () => loadBoardData());
-createServerFn({ method: "POST" }).validator((d) => gangInput.parse(d)).handler(async ({ data }) => {
-	return mapGang((await (await getSql())`
-      insert into gangs (id, name, tag, color, status, leader, description, members, notes, logo, updated_at)
-      values (
-        ${data.id}, ${data.name}, ${data.tag}, ${data.color}, ${data.status},
-        ${data.leader}, ${data.description}, ${data.members}, ${data.notes}, ${data.logo}, now()
-      )
-      on conflict (id) do update set
-        name = excluded.name,
-        tag = excluded.tag,
-        color = excluded.color,
-        status = excluded.status,
-        leader = excluded.leader,
-        description = excluded.description,
-        members = excluded.members,
-        notes = excluded.notes,
-        logo = excluded.logo,
-        updated_at = now()
-      returning *
-    `)[0]);
-});
-createServerFn({ method: "POST" }).validator((d) => object({ id: string().min(1) }).parse(d)).handler(async ({ data }) => {
-	const sql = await getSql();
-	await sql`update territories set gang_id = null where gang_id = ${data.id}`;
-	await sql`update pins set gang_id = null where gang_id = ${data.id}`;
-	await sql`delete from gangs where id = ${data.id}`;
-	return { id: data.id };
-});
-createServerFn({ method: "POST" }).validator((d) => territoryInput.parse(d)).handler(async ({ data }) => {
-	return mapTerritory((await (await getSql())`
-      insert into territories (id, gang_id, name, kind, color, polygon, notes, updated_at)
-      values (
-        ${data.id}, ${data.gangId}, ${data.name}, ${data.kind}, ${data.color},
-        ${JSON.stringify(data.polygon)}, ${data.notes}, now()
-      )
-      on conflict (id) do update set
-        gang_id = excluded.gang_id,
-        name = excluded.name,
-        kind = excluded.kind,
-        color = excluded.color,
-        polygon = excluded.polygon,
-        notes = excluded.notes,
-        updated_at = now()
-      returning *
-    `)[0]);
-});
-createServerFn({ method: "POST" }).validator((d) => object({ id: string().min(1) }).parse(d)).handler(async ({ data }) => {
-	await (await getSql())`delete from territories where id = ${data.id}`;
-	return { id: data.id };
-});
-createServerFn({ method: "POST" }).validator((d) => pinInput.parse(d)).handler(async ({ data }) => {
-	return mapPin((await (await getSql())`
-      insert into pins (id, gang_id, name, kind, color, lat, lng, notes, date_found, image, updated_at)
-      values (
-        ${data.id}, ${data.gangId}, ${data.name}, ${data.kind}, ${data.color},
-        ${data.lat}, ${data.lng}, ${data.notes}, ${data.dateFound}, ${data.image}, now()
-      )
-      on conflict (id) do update set
-        gang_id = excluded.gang_id,
-        name = excluded.name,
-        kind = excluded.kind,
-        color = excluded.color,
-        lat = excluded.lat,
-        lng = excluded.lng,
-        notes = excluded.notes,
-        date_found = excluded.date_found,
-        image = excluded.image,
-        updated_at = now()
-      returning *
-    `)[0]);
-});
-createServerFn({ method: "POST" }).validator((d) => object({ id: string().min(1) }).parse(d)).handler(async ({ data }) => {
-	await (await getSql())`delete from pins where id = ${data.id}`;
-	return { id: data.id };
-});
-var boardInput = object({
-	gangs: array(gangInput).max(200),
-	territories: array(territoryInput).max(400),
-	pins: array(pinInput).max(800)
-});
-createServerFn({ method: "POST" }).validator((d) => boardInput.parse(d)).handler(async ({ data }) => {
-	const sql = await getSql();
-	await sql`delete from pins`;
-	await sql`delete from territories`;
-	await sql`delete from gangs`;
-	for (const g of data.gangs) await sql`
-        insert into gangs (id, name, tag, color, status, leader, description, members, notes, logo, updated_at)
-        values (
-          ${g.id}, ${g.name}, ${g.tag}, ${g.color}, ${g.status},
-          ${g.leader}, ${g.description}, ${g.members}, ${g.notes}, ${g.logo}, now()
-        )
-        on conflict (id) do update set
-          name = excluded.name,
-          tag = excluded.tag,
-          color = excluded.color,
-          status = excluded.status,
-          leader = excluded.leader,
-          description = excluded.description,
-          members = excluded.members,
-          notes = excluded.notes,
-          logo = excluded.logo,
-          updated_at = now()
-      `;
-	for (const t of data.territories) await sql`
-        insert into territories (id, gang_id, name, kind, color, polygon, notes, updated_at)
-        values (
-          ${t.id}, ${t.gangId}, ${t.name}, ${t.kind}, ${t.color},
-          ${JSON.stringify(t.polygon)}, ${t.notes}, now()
-        )
-        on conflict (id) do update set
-          gang_id = excluded.gang_id,
-          name = excluded.name,
-          kind = excluded.kind,
-          color = excluded.color,
-          polygon = excluded.polygon,
-          notes = excluded.notes,
-          updated_at = now()
-      `;
-	for (const p of data.pins) await sql`
-        insert into pins (id, gang_id, name, kind, color, lat, lng, notes, date_found, image, updated_at)
-        values (
-          ${p.id}, ${p.gangId}, ${p.name}, ${p.kind}, ${p.color},
-          ${p.lat}, ${p.lng}, ${p.notes}, ${p.dateFound}, ${p.image}, now()
-        )
-        on conflict (id) do update set
-          gang_id = excluded.gang_id,
-          name = excluded.name,
-          kind = excluded.kind,
-          color = excluded.color,
-          lat = excluded.lat,
-          lng = excluded.lng,
-          notes = excluded.notes,
-          date_found = excluded.date_found,
-          image = excluded.image,
-          updated_at = now()
-      `;
 	const gangs = await sql`select * from gangs order by name asc`;
 	const territories = await sql`select * from territories order by name asc`;
 	const pins = await sql`select * from pins order by name asc`;
@@ -862,7 +633,7 @@ createServerFn({ method: "POST" }).validator((d) => boardInput.parse(d)).handler
 		territories: territories.map(mapTerritory),
 		pins: pins.map(mapPin)
 	};
-});
+}
 //#endregion
 //#region server/middleware/board-api.ts
 /**
@@ -873,7 +644,7 @@ async function boardApiMiddleware(event, next) {
 	if ((event.url.pathname.replace(/\/$/, "") || "/") !== "/api/board") return next();
 	if ((event.req.method ?? "GET").toUpperCase() !== "GET") return new Response("Method Not Allowed", { status: 405 });
 	try {
-		const board = await listBoard();
+		const board = await loadBoardData();
 		return new Response(JSON.stringify(board), { headers: {
 			"content-type": "application/json; charset=utf-8",
 			"cache-control": "no-store"

@@ -2,7 +2,7 @@
  * Public JSON of the board so a redeploy can snapshot tags/turf
  * (`GET /api/board`) without going through the RPC client.
  */
-import { listBoard } from "../../src/lib/data";
+import { loadBoardData } from "../../src/lib/board-query.server";
 
 interface BoardApiEvent {
   url: URL;
@@ -20,7 +20,7 @@ export default async function boardApiMiddleware(
     return new Response("Method Not Allowed", { status: 405 });
   }
   try {
-    const board = await listBoard();
+    const board = await loadBoardData();
     return new Response(JSON.stringify(board), {
       headers: {
         "content-type": "application/json; charset=utf-8",
